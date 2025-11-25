@@ -19,6 +19,20 @@ app_ui = ui.page_fluid(
             rel="stylesheet",
             href="https://fonts.googleapis.com/css2?family=Cinzel+Decorative:wght@700&family=Spectral:wght@400;600&display=swap",
         ),
+        # JS handler to rotate the wheel image
+        ui.tags.script(
+            """
+            document.addEventListener('DOMContentLoaded', function() {
+              if (window.Shiny) {
+                Shiny.addCustomMessageHandler('spin_wheel', function(message) {
+                  var el = document.getElementById('wheel-disc');
+                  if (!el) return;
+                  el.style.transform = 'rotate(' + message.angle + 'deg)';
+                });
+              }
+            });
+            """
+        ),
         ui.tags.style(
             """
             body {
@@ -27,7 +41,6 @@ app_ui = ui.page_fluid(
               min-height: 100vh;
             }
 
-            /* Selection highlight: warm gold + white text */
             ::selection {
               background: #f97316;
               color: #ffffff;
@@ -171,7 +184,7 @@ app_ui = ui.page_fluid(
             .help-text {
               font-family: 'Spectral', serif;
               font-size: 0.75rem;
-              color: #ffffff !important;   /* bright & legible */
+              color: #ffffff !important;
               margin-top: 0.25rem;
             }
 
@@ -210,7 +223,7 @@ app_ui = ui.page_fluid(
               font-family: 'Spectral', serif;
               font-size: 0.84rem;
               cursor: pointer;
-              justify-content: center;      /* centre text + dot as a unit */
+              justify-content: center;
               text-align: center;
             }
 
@@ -262,50 +275,24 @@ app_ui = ui.page_fluid(
               filter: blur(4px);
             }
 
+            /* Image wheel */
             .wheel {
               width: 260px;
               height: 260px;
               border-radius: 50%;
               border: 6px solid #f7c956;
               box-shadow: 0 0 32px rgba(0,0,0,0.9);
-              background-image: conic-gradient(
-                #b02613 0deg 36deg,
-                #f59e0b 36deg 140deg,
-                #facc15 140deg 240deg,
-                #facc15 240deg 360deg
-              );
               transition: transform 4s cubic-bezier(0.22, 0.61, 0.36, 1);
-              position: relative;
-              overflow: hidden;
-              background-color: #f97316;
+              transform-origin: 50% 50%;
+              display: block;
+              object-fit: contain;
+              z-index: 1;
             }
 
-            .wheel-inner-ring {
-              position: absolute;
-              inset: 9%;
-              border-radius: 50%;
-              border: 2px solid rgba(0,0,0,0.65);
+            .wheel-pointer,
+            .wheel-pointer-pin {
+              z-index: 5;
             }
-
-            .wheel-shine {
-              position: absolute;
-              inset: 18%;
-              border-radius: 50%;
-              background: radial-gradient(circle at 30% 0%, rgba(255,255,255,0.22), transparent 60%);
-              mix-blend-mode: screen;
-            }
-
-            .wheel-tick {
-              position: absolute;
-              width: 2px;
-              height: 16px;
-              background: #4b2c08;
-            }
-
-            .wheel-tick-top { top: 4px; left: 50%; transform: translateX(-50%); }
-            .wheel-tick-bottom { bottom: 4px; left: 50%; transform: translateX(-50%); }
-            .wheel-tick-left { left: 4px; top: 50%; transform: translateY(-50%); }
-            .wheel-tick-right { right: 4px; top: 50%; transform: translateY(-50%); }
 
             .wheel-pointer {
               position: absolute;
@@ -332,26 +319,6 @@ app_ui = ui.page_fluid(
               background: radial-gradient(circle at 30% 0%, #fef3c7, #fbbf24);
             }
 
-            .wheel-loss-label {
-              position: absolute;
-              top: 16%;
-              right: 12%;
-              transform: rotate(18deg);
-              transform-origin: center;
-              text-align: center;
-              color: #fee2d5;
-              font-family: 'Cinzel Decorative', serif;
-            }
-
-            .wheel-loss-label-main {
-              font-size: 0.78rem;
-              letter-spacing: 0.16em;
-            }
-
-            .wheel-loss-label-sub {
-              font-size: 0.7rem;
-            }
-
             .wheel-center-button {
               position: absolute;
               width: 110px;
@@ -370,6 +337,7 @@ app_ui = ui.page_fluid(
               color: #3a2410;
               text-align: center;
               box-shadow: 0 0 20px rgba(0,0,0,1);
+              z-index: 6;
             }
 
             .wheel-center-button:hover {
@@ -402,13 +370,13 @@ app_ui = ui.page_fluid(
               text-align: center;
             }
 
-            /* ---------- EARNINGS / LEDGER TABLES ---------- */
+            /* ---------- TABLES ---------- */
 
             table {
               font-size: 0.8rem;
               font-family: 'Spectral', serif;
               background-color: #18100d;
-              color: #ffffff;   /* body text white */
+              color: #ffffff;
             }
 
             table thead tr th {
@@ -445,7 +413,7 @@ app_ui = ui.page_fluid(
               color: #f9dfaa;
             }
 
-            /* ---------- MODAL (TENDAY RESULTS) ---------- */
+            /* ---------- MODAL ---------- */
 
             .modal-content {
               border-radius: 14px;
@@ -658,12 +626,18 @@ app_ui = ui.page_fluid(
                         ui.div(
                             {"class": "wheel-wrapper"},
                             ui.div({"class": "wheel-halo"}),
+                            ui.tags.img(
+                                id="wheel-disc",
+                                src="assets/Wheel.png",
+                                class_="wheel",
+                            ),
                             ui.div({"class": "wheel-pointer"}),
                             ui.div({"class": "wheel-pointer-pin"}),
-                            ui.output_ui("wheel_ui"),
                             ui.input_action_button(
                                 "spin",
-                                ui.HTML("<span class='wheel-center-text'>SPIN<br>FOR GOLD</span>"),
+                                ui.HTML(
+                                    "<span class='wheel-center-text'>SPIN<br>FOR GOLD</span>"
+                                ),
                                 class_="wheel-center-button",
                             ),
                         ),
@@ -696,8 +670,8 @@ app_ui = ui.page_fluid(
 
 def server(input, output, session):
     rotation = reactive.Value(0.0)
-    last_result = reactive.Value(None)      # dict or None
-    ledger = reactive.Value([])            # list[dict]
+    last_result = reactive.Value(None)
+    ledger = reactive.Value([])
 
     @reactive.effect
     @reactive.event(input.spin)
@@ -719,10 +693,11 @@ def server(input, output, session):
             result_pct = MIN_PROFIT_PERCENT + u * (MAX_PROFIT_PERCENT - MIN_PROFIT_PERCENT)
             target_angle = loss_degrees + u * profit_degrees
 
-        # Rotate wheel so target is under pointer (pointer at 90°)
+        # Rotate wheel so target is under pointer (pointer is at 90°)
         extra_spins = 360 * random.randint(4, 7)
         final_rot = rotation() + extra_spins + (90 - target_angle)
         rotation.set(final_rot)
+        session.send_custom_message("spin_wheel", {"angle": final_rot})
 
         # Earnings maths
         base_profit = investment * (result_pct / 100.0)
@@ -807,24 +782,6 @@ def server(input, output, session):
             size="m",
         )
         ui.modal_show(modal)
-
-    # Wheel disc
-    @render.ui
-    def wheel_ui():
-        return ui.div(
-            {"class": "wheel", "style": f"transform: rotate({rotation()}deg);"},
-            ui.div({"class": "wheel-inner-ring"}),
-            ui.div({"class": "wheel-shine"}),
-            ui.div({"class": "wheel-tick wheel-tick-top"}),
-            ui.div({"class": "wheel-tick wheel-tick-bottom"}),
-            ui.div({"class": "wheel-tick wheel-tick-left"}),
-            ui.div({"class": "wheel-tick wheel-tick-right"}),
-            ui.div(
-                {"class": "wheel-loss-label"},
-                ui.div("LOSS", class_="wheel-loss-label-main"),
-                ui.div("-10%", class_="wheel-loss-label-sub"),
-            ),
-        )
 
     # Status text
     @render.text
