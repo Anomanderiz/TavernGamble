@@ -9,6 +9,7 @@ LOSS_PERCENTAGE = -10       # -10% result when loss happens
 MIN_PROFIT_PERCENT = 20     # 20% minimum profit
 MAX_PROFIT_PERCENT = 200    # 200% maximum profit
 
+
 # ========================= UI =========================
 
 app_ui = ui.page_fluid(
@@ -176,7 +177,7 @@ app_ui = ui.page_fluid(
               box-shadow: 0 0 0 1px #f1b13b;
             }
 
-            /* ---------- NARRATIVE FLAIR RADIO ---------- */
+            /* ---------- RADIO ---------- */
 
             .shiny-input-radiogroup {
               margin-top: 0.5rem;
@@ -420,6 +421,134 @@ app_ui = ui.page_fluid(
               text-align: center;
               font-style: italic;
             }
+
+            /* ---------- MODAL (TENDAY RESULTS) ---------- */
+
+            .modal-content {
+              border-radius: 14px;
+              border: 1px solid #f59e0b;
+              background: radial-gradient(circle at top, #201713 0, #120e0c 65%);
+              box-shadow: 0 18px 45px rgba(0,0,0,0.95);
+            }
+
+            .modal-header {
+              border-bottom: none;
+              padding-bottom: 0;
+            }
+
+            .modal-body {
+              padding-top: 0;
+            }
+
+            .results-modal {
+              font-family: 'Spectral', serif;
+              color: #fef3d5;
+            }
+
+            .results-title {
+              font-family: 'Cinzel Decorative', serif;
+              text-transform: uppercase;
+              letter-spacing: 0.18em;
+              font-size: 1.0rem;
+              text-align: center;
+              margin-bottom: 0.25rem;
+              color: #fde68a;
+            }
+
+            .results-subtitle {
+              font-size: 0.78rem;
+              text-align: center;
+              margin-bottom: 0.75rem;
+              color: #facc85;
+            }
+
+            .results-warning {
+              width: 40px;
+              height: 40px;
+              border-radius: 50%;
+              border: 2px solid #f97316;
+              display: flex;
+              align-items: center;
+              justify-content: center;
+              color: #fed7aa;
+              margin: 0 auto 0.5rem auto;
+              font-size: 1.2rem;
+            }
+
+            .results-row {
+              display: flex;
+              justify-content: space-between;
+              font-size: 0.86rem;
+              margin-bottom: 0.25rem;
+            }
+
+            .results-label {
+              color: #fef3d5;
+            }
+
+            .results-value {
+              font-weight: 600;
+            }
+
+            .results-muted {
+              font-size: 0.78rem;
+              color: #a3a3c2;
+              text-align: right;
+            }
+
+            .results-divider {
+              border-bottom: 1px solid #31201a;
+              margin: 0.6rem 0 0.6rem 0;
+            }
+
+            .results-netbox {
+              margin-top: 0.4rem;
+              padding: 0.65rem 0.75rem;
+              border-radius: 10px;
+              border: 1px solid #5f4020;
+              background: radial-gradient(circle at top, #241812 0, #18100d 70%);
+            }
+
+            .results-net-label {
+              font-size: 0.75rem;
+              text-transform: uppercase;
+              letter-spacing: 0.12em;
+              color: #f97316;
+            }
+
+            .results-net-value {
+              font-size: 0.95rem;
+              color: #fef3d5;
+            }
+
+            .results-final-label {
+              font-size: 0.78rem;
+              text-transform: uppercase;
+              letter-spacing: 0.12em;
+              color: #fcd34d;
+            }
+
+            .results-final-value {
+              font-size: 1.05rem;
+              color: #facc15;
+            }
+
+            .btn-record {
+              width: 100%;
+              text-transform: uppercase;
+              letter-spacing: 0.12em;
+              font-family: 'Cinzel Decorative', serif;
+              font-size: 0.8rem;
+              border-radius: 999px;
+              border: 1px solid #f97316;
+              background: linear-gradient(135deg, #f97316, #f59e0b);
+              color: #1f140c;
+              margin-top: 0.8rem;
+            }
+
+            .btn-record:hover {
+              filter: brightness(1.04);
+            }
             """
         ),
     ),
@@ -573,8 +702,10 @@ def server(input, output, session):
         rotation.set(final_rot)
 
         # Earnings maths
-        base_final = investment * (1 + result_pct / 100.0)
-        final_with_flair = base_final * (1 + flair_pct / 100.0)
+        base_profit = investment * (result_pct / 100.0)
+        base_outcome = investment + base_profit
+        flair_bonus_gp = base_outcome * (flair_pct / 100.0)
+        final_with_flair = base_outcome + flair_bonus_gp
         net_profit = final_with_flair - investment
 
         state = {
@@ -582,12 +713,72 @@ def server(input, output, session):
             "investment": investment,
             "wheel_pct": result_pct,
             "flair_pct": flair_pct,
+            "base_outcome": base_outcome,
+            "flair_bonus_gp": flair_bonus_gp,
             "net_profit": net_profit,
             "final_amount": final_with_flair,
         }
 
         last_result.set(state)
         ledger.set([state] + ledger())
+
+        # --- Tenday Results modal ---
+        sign = "+" if result_pct >= 0 else ""
+        wheel_str = f"{sign}{result_pct:.1f}%"
+        flair_str = f"+{flair_pct}%"
+
+        modal_body = ui.div(
+            {"class": "results-modal"},
+            ui.div("!", class_="results-warning"),
+            ui.div("TENDAY RESULTS", class_="results-title"),
+            ui.div("The wheel has spoken!", class_="results-subtitle"),
+            ui.div(
+                {"class": "results-row"},
+                ui.span("Initial Investment:", class_="results-label"),
+                ui.span(f"{investment:.0f} gp", class_="results-value"),
+            ),
+            ui.div(
+                {"class": "results-row"},
+                ui.span("Wheel Result:", class_="results-label"),
+                ui.span(wheel_str, class_="results-value"),
+            ),
+            ui.div(
+                {"class": "results-row"},
+                ui.span("Base Outcome:", class_="results-label"),
+                ui.span(f"{base_outcome:.0f} gp", class_="results-value"),
+            ),
+            ui.div(
+                {"class": "results-row"},
+                ui.span("Narrative Flair Bonus:", class_="results-label"),
+                ui.span(flair_str, class_="results-value"),
+            ),
+            ui.div(
+                {"class": "results-muted"},
+                f"(Added {flair_bonus_gp:.0f} gp to gross total)",
+            ),
+            ui.div(class_="results-divider"),
+            ui.div(
+                {"class": "results-netbox"},
+                ui.div(
+                    ui.span("NET PROFIT", class_="results-net-label"),
+                    ui.span(f"{net_profit:.0f} gp", class_="results-net-value"),
+                ),
+                ui.div(
+                    {"style": "margin-top:0.35rem; display:flex; justify-content:space-between;"},
+                    ui.span("FINAL AMOUNT", class_="results-final-label"),
+                    ui.span(f"{final_with_flair:.0f} gp", class_="results-final-value"),
+                ),
+            ),
+        )
+
+        modal = ui.modal(
+            modal_body,
+            title=None,
+            easy_close=True,
+            footer=ui.modal_button("Record in Ledger", class_="btn btn-record"),
+            size="m",
+        )
+        ui.modal_show(modal)
 
     # Wheel disc
     @render.ui
@@ -628,7 +819,7 @@ def server(input, output, session):
                 f"Gain of {pct:.1f}% — about {net:.1f} gp profit after a {flair_pct}% flair bonus."
             )
 
-    # Latest spin summary as a pandas DataFrame
+    # Latest spin summary (table under 'THE EARNINGS')
     @render.table
     def latest_summary():
         res = last_result()
@@ -641,7 +832,6 @@ def server(input, output, session):
         ]
 
         if res is None:
-            # Empty DataFrame with expected columns
             return pd.DataFrame(columns=cols)
 
         row = {
@@ -653,7 +843,7 @@ def server(input, output, session):
         }
         return pd.DataFrame([row], columns=cols)
 
-    # Full ledger table as a pandas DataFrame
+    # Full ledger table
     @render.table
     def ledger_table():
         rows = ledger()
@@ -669,19 +859,17 @@ def server(input, output, session):
         if not rows:
             return pd.DataFrame(columns=cols)
 
-        display_rows = []
-        for r in rows:
-            display_rows.append(
-                {
-                    "Date": r["date"],
-                    "Investment (gp)": round(r["investment"], 1),
-                    "Fortune wheel": f"{r['wheel_pct']:.1f}%",
-                    "Flair": f"+{r['flair_pct']}%",
-                    "Net profit (gp)": round(r["net_profit"], 1),
-                    "Final amount (gp)": round(r["final_amount"], 1),
-                }
-            )
-
+        display_rows = [
+            {
+                "Date": r["date"],
+                "Investment (gp)": round(r["investment"], 1),
+                "Fortune wheel": f"{r['wheel_pct']:.1f}%",
+                "Flair": f"+{r['flair_pct']}%",
+                "Net profit (gp)": round(r["net_profit"], 1),
+                "Final amount (gp)": round(r["final_amount"], 1),
+            }
+            for r in rows
+        ]
         return pd.DataFrame(display_rows, columns=cols)
 
     # Ledger footer
