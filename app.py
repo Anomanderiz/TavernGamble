@@ -1,4 +1,4 @@
-from shiny import App, ui, render, reactive
+from shiny import App, ui, render, reactive, output
 from datetime import datetime
 import random
 
@@ -9,11 +9,11 @@ MIN_PROFIT_PERCENT = 20     # 20% minimum profit
 MAX_PROFIT_PERCENT = 200    # 200% maximum profit
 
 
-# --- UI ---
+# ========================= UI =========================
 
 app_ui = ui.page_fluid(
     ui.tags.head(
-        ui.tags.title("The Gilded Tankard — Tavern Manager"),
+        ui.tags.title("The Gilded Tankard — Tavern Management System"),
         ui.tags.link(
             rel="stylesheet",
             href="https://fonts.googleapis.com/css2?family=Cinzel+Decorative:wght@700&family=Spectral:wght@400;600&display=swap",
@@ -21,103 +21,233 @@ app_ui = ui.page_fluid(
         ui.tags.style(
             """
             body {
-              background: radial-gradient(circle at top, #1f2937 0, #020617 55%);
-              color: #fef3c7;
+              background: radial-gradient(circle at top, #262321 0, #0f0d0b 55%);
+              color: #fce7b2;
               min-height: 100vh;
             }
 
-            .app-wrapper {
-              max-width: 1100px;
+            .app-shell {
+              max-width: 1200px;
               margin: 0 auto 2rem auto;
-              padding: 0 1rem 2rem 1rem;
+              padding: 0 1.5rem 2rem 1.5rem;
             }
 
+            /* ---------- HEADER ---------- */
+
             .app-header {
-              background: rgba(15,23,42,0.92);
-              border-bottom: 1px solid rgba(251,191,36,0.45);
-              box-shadow: 0 15px 35px rgba(0,0,0,0.85);
-              padding: 1.1rem 1.5rem;
-              position: sticky;
-              top: 0;
-              z-index: 10;
-              backdrop-filter: blur(14px);
+              background: #171311;
+              border-bottom: 1px solid #5a3c18;
+              box-shadow: 0 10px 30px rgba(0,0,0,0.8);
+              padding: 0.8rem 0;
+              margin-bottom: 1.5rem;
             }
 
             .app-header-inner {
-              display: flex;
-              justify-content: space-between;
-              align-items: center;
-              max-width: 1100px;
+              max-width: 1200px;
               margin: 0 auto;
-            }
-
-            .app-title-block {
               display: flex;
-              flex-direction: column;
+              align-items: center;
+              justify-content: space-between;
+              padding: 0 1.5rem;
             }
 
-            .app-title {
+            .brand-block {
+              display: flex;
+              align-items: center;
+              gap: 0.75rem;
+            }
+
+            .brand-icon {
+              width: 34px;
+              height: 34px;
+              border-radius: 50%;
+              border: 2px solid #f5b63a;
+              display: flex;
+              align-items: center;
+              justify-content: center;
+              background: radial-gradient(circle at 30% 0%, #ffeeca, #f6b53b);
+              box-shadow: 0 0 14px rgba(0,0,0,0.9);
+              font-size: 1.1rem;
+            }
+
+            .brand-text-main {
               font-family: 'Cinzel Decorative', serif;
-              font-size: 2rem;
+              text-transform: uppercase;
+              letter-spacing: 0.18em;
+              font-size: 1.1rem;
+              color: #f4d191;
+            }
+
+            .brand-text-sub {
+              font-family: 'Spectral', serif;
+              font-size: 0.8rem;
               letter-spacing: 0.18em;
               text-transform: uppercase;
-              color: #fbbf24;
-              text-shadow: 0 0 18px rgba(251,191,36,0.6);
+              color: #d0a45c;
             }
 
-            .app-subtitle {
+            .header-tagline {
               font-family: 'Spectral', serif;
-              color: #fde68a;
-              font-size: 0.9rem;
               text-transform: uppercase;
-              letter-spacing: 0.25em;
-              margin-top: 0.2rem;
+              letter-spacing: 0.16em;
+              font-size: 0.75rem;
+              color: #f9d474;
             }
 
-            .app-tagline {
-              font-family: 'Spectral', serif;
-              color: #fef3c7;
-              font-style: italic;
-              font-size: 0.95rem;
+            /* ---------- PANELS ---------- */
+
+            .main-grid {
+              display: grid;
+              grid-template-columns: 1.1fr 1.7fr;
+              gap: 1.5rem;
+            }
+
+            .left-stack {
+              display: flex;
+              flex-direction: column;
+              gap: 1.2rem;
             }
 
             .glass-panel {
-              background: rgba(15,23,42,0.88);
-              border-radius: 18px;
-              border: 1px solid rgba(251,191,36,0.28);
-              box-shadow: 0 0 30px rgba(0,0,0,0.9);
-              padding: 1.25rem 1.5rem;
-              margin-bottom: 1rem;
-              backdrop-filter: blur(12px);
+              background: radial-gradient(circle at top, #211b16 0, #14100e 65%);
+              border-radius: 12px;
+              border: 1px solid #6b4a20;
+              box-shadow: 0 14px 32px rgba(0,0,0,0.9);
+              padding: 1.1rem 1.2rem;
             }
 
-            h3 {
+            .panel-header {
+              display: flex;
+              align-items: center;
+              gap: 0.55rem;
+              margin-bottom: 0.9rem;
+            }
+
+            .panel-glyph {
+              width: 24px;
+              height: 24px;
+              border-radius: 50%;
+              border: 1px solid #f5b63a;
+              display: flex;
+              align-items: center;
+              justify-content: center;
+              font-size: 0.9rem;
+              background: radial-gradient(circle at 30% 0%, #fef3d0, #f4b337);
+              color: #43230b;
+            }
+
+            .panel-title {
               font-family: 'Cinzel Decorative', serif;
               text-transform: uppercase;
-              letter-spacing: 0.12em;
-              color: #fde68a;
-              font-size: 1.1rem;
-              margin-top: 0;
-              margin-bottom: 0.75rem;
+              letter-spacing: 0.18em;
+              font-size: 0.86rem;
+              color: #f8e0a8;
             }
 
-            .spin-button {
+            .panel-caption {
+              font-family: 'Spectral', serif;
+              font-size: 0.78rem;
+              color: #d6b47a;
+            }
+
+            .field-label {
+              font-family: 'Spectral', serif;
+              font-size: 0.82rem;
+              margin-bottom: 0.25rem;
+              color: #fdf3cd;
+            }
+
+            .help-text {
+              font-family: 'Spectral', serif;
+              font-size: 0.75rem;
+              color: #b89c6f;
+              margin-top: 0.25rem;
+            }
+
+            .form-control {
+              background-color: #16120f;
+              border-radius: 8px;
+              border: 1px solid #4c3620;
+              color: #fce7b2;
+            }
+
+            .form-control:focus {
+              border-color: #f1b13b;
+              box-shadow: 0 0 0 1px #f1b13b;
+            }
+
+            /* ---------- NARRATIVE FLAIR RADIO ---------- */
+
+            .shiny-input-radiogroup {
+              margin-top: 0.5rem;
+            }
+
+            .shiny-input-radiogroup .radio {
+              margin-bottom: 0.4rem;
+            }
+
+            .shiny-input-radiogroup label {
+              width: 100%;
+              display: flex;
+              align-items: center;
+              justify-content: space-between;
+              gap: 0.5rem;
+              padding: 0.55rem 0.75rem;
+              border-radius: 10px;
+              background: #15110f;
+              border: 1px solid #3a2a18;
+              color: #fbe6b2;
+              font-family: 'Spectral', serif;
+              font-size: 0.84rem;
+              cursor: pointer;
+            }
+
+            .shiny-input-radiogroup input[type="radio"] {
+              margin-right: 0.45rem;
+            }
+
+            .flair-main {
+              text-transform: uppercase;
+              letter-spacing: 0.14em;
+              font-size: 0.78rem;
+            }
+
+            .flair-sub {
+              font-size: 0.75rem;
+              color: #c3a272;
+            }
+
+            .flair-bonus {
+              font-size: 0.8rem;
+              color: #7fe39d;
+              font-weight: 600;
+            }
+
+            .shiny-input-radiogroup input[type="radio"]:checked + span {
+              /* handled by browser, we style via :has if supported (not guaranteed) */
+            }
+
+            /* ---------- WHEEL ---------- */
+
+            .wheel-panel {
+              padding: 1.1rem 1.3rem 1.2rem 1.3rem;
+            }
+
+            .wheel-title {
               font-family: 'Cinzel Decorative', serif;
               text-transform: uppercase;
-              letter-spacing: 0.12em;
-              font-weight: 700;
+              letter-spacing: 0.2em;
+              font-size: 0.9rem;
+              text-align: center;
+              margin-bottom: 0.8rem;
+              color: #f9dfaa;
             }
 
-            .spin-button.btn {
-              background: linear-gradient(135deg, #fbbf24, #f97316);
-              border: 1px solid #facc15;
-              color: #1f2937;
-              box-shadow: 0 0 18px rgba(251,191,36,0.6);
-            }
-
-            .spin-button.btn:hover {
-              filter: brightness(1.05);
-              box-shadow: 0 0 24px rgba(251,191,36,0.9);
+            .wheel-shell {
+              background: radial-gradient(circle at center, rgba(255,208,120,0.22), transparent 60%);
+              border-radius: 14px;
+              padding: 1.0rem 1.0rem 0.9rem 1.0rem;
+              border: 1px solid #6b4a20;
             }
 
             .wheel-wrapper {
@@ -125,48 +255,107 @@ app_ui = ui.page_fluid(
               display: flex;
               justify-content: center;
               align-items: center;
-              margin-top: 0.75rem;
-              margin-bottom: 0.75rem;
+              margin: 0.3rem 0 0.2rem 0;
+            }
+
+            .wheel-halo {
+              position: absolute;
+              width: 360px;
+              height: 360px;
+              border-radius: 50%;
+              background: radial-gradient(circle at center, rgba(255,203,120,0.25), transparent 60%);
+              filter: blur(4px);
             }
 
             .wheel {
               width: 260px;
               height: 260px;
               border-radius: 50%;
-              border: 6px solid #facc15;
+              border: 6px solid #f7c956;
               box-shadow: 0 0 32px rgba(0,0,0,0.9);
-              /* Red loss slice is 10% of the circle */
+              /* loss slice: first 10% in red */
               background-image: conic-gradient(
-                #7f1d1d 0deg 36deg,      /* 10% loss sector */
-                #f97316 36deg 140deg,
-                #fbbf24 140deg 240deg,
-                #22c55e 240deg 360deg
+                #b02613 0deg 36deg,
+                #f59e0b 36deg 140deg,
+                #facc15 140deg 240deg,
+                #facc15 240deg 360deg
               );
               transition: transform 4s cubic-bezier(0.22, 0.61, 0.36, 1);
               position: relative;
               overflow: hidden;
+              background-color: #f97316;
             }
 
-            .wheel::after {
-              content: '';
+            .wheel-inner-ring {
+              position: absolute;
+              inset: 9%;
+              border-radius: 50%;
+              border: 2px solid rgba(0,0,0,0.65);
+            }
+
+            .wheel-shine {
               position: absolute;
               inset: 18%;
               border-radius: 50%;
-              background: radial-gradient(circle at 30% 0%, rgba(255,255,255,0.18), transparent 55%);
+              background: radial-gradient(circle at 30% 0%, rgba(255,255,255,0.22), transparent 60%);
               mix-blend-mode: screen;
             }
 
+            .wheel-tick {
+              position: absolute;
+              width: 2px;
+              height: 16px;
+              background: #4b2c08;
+            }
+
+            .wheel-tick-top { top: 4px; left: 50%; transform: translateX(-50%); }
+            .wheel-tick-bottom { bottom: 4px; left: 50%; transform: translateX(-50%); }
+            .wheel-tick-left { left: 4px; top: 50%; transform: translateY(-50%); }
+            .wheel-tick-right { right: 4px; top: 50%; transform: translateY(-50%); }
+
             .wheel-pointer {
               position: absolute;
-              top: -4px;
+              top: -3px;
               left: 50%;
               transform: translateX(-50%);
               width: 0;
               height: 0;
-              border-left: 12px solid transparent;
-              border-right: 12px solid transparent;
-              border-bottom: 22px solid #fbbf24;
-              filter: drop-shadow(0 4px 6px rgba(0,0,0,0.8));
+              border-left: 10px solid transparent;
+              border-right: 10px solid transparent;
+              border-bottom: 22px solid #fef3c7;
+              filter: drop-shadow(0 3px 6px rgba(0,0,0,0.9));
+            }
+
+            .wheel-pointer-pin {
+              position: absolute;
+              top: 16px;
+              left: 50%;
+              transform: translateX(-50%);
+              width: 11px;
+              height: 11px;
+              border-radius: 50%;
+              border: 2px solid #4b2c08;
+              background: radial-gradient(circle at 30% 0%, #fef3c7, #fbbf24);
+            }
+
+            .wheel-loss-label {
+              position: absolute;
+              top: 16%;
+              right: 12%;
+              transform: rotate(18deg);
+              transform-origin: center;
+              text-align: center;
+              color: #fee2d5;
+              font-family: 'Cinzel Decorative', serif;
+            }
+
+            .wheel-loss-label-main {
+              font-size: 0.78rem;
+              letter-spacing: 0.16em;
+            }
+
+            .wheel-loss-label-sub {
+              font-size: 0.7rem;
             }
 
             .wheel-center-button {
@@ -174,62 +363,84 @@ app_ui = ui.page_fluid(
               width: 110px;
               height: 110px;
               border-radius: 50%;
-              border: 2px solid rgba(15,23,42,0.85);
-              background: radial-gradient(circle at 30% 0%, #fef3c7, #fbbf24);
+              border: 2px solid rgba(68,41,13,0.9);
+              background: radial-gradient(circle at 30% 0%, #fff5d1, #f5b037);
               display: flex;
               align-items: center;
               justify-content: center;
               cursor: pointer;
               font-family: 'Cinzel Decorative', serif;
-              font-size: 0.8rem;
               text-transform: uppercase;
-              letter-spacing: 0.14em;
-              color: #1f2937;
+              letter-spacing: 0.16em;
+              font-size: 0.7rem;
+              color: #3a2410;
               text-align: center;
-              box-shadow: 0 0 16px rgba(0,0,0,0.9);
+              box-shadow: 0 0 20px rgba(0,0,0,1);
             }
 
             .wheel-center-button:hover {
               filter: brightness(1.05);
             }
 
+            .wheel-center-button.btn {
+              border: none;
+              background: transparent;
+              box-shadow: none;
+            }
+
+            .wheel-center-text {
+              line-height: 1.4;
+            }
+
+            .loss-warning {
+              font-family: 'Spectral', serif;
+              text-align: center;
+              font-size: 0.78rem;
+              color: #fda4af;
+              margin-top: 0.4rem;
+            }
+
             .status-text {
-              margin-top: 0.5rem;
+              margin-top: 0.45rem;
               font-family: 'Spectral', serif;
-              font-size: 0.9rem;
-              color: #e5e7eb;
+              font-size: 0.85rem;
+              color: #fef3c7;
+              text-align: center;
             }
 
-            .result-grid {
-              display: flex;
-              flex-direction: column;
-              gap: 0.4rem;
-              margin-top: 0.75rem;
-              font-family: 'Spectral', serif;
-            }
+            /* ---------- EARNINGS / LEDGER ---------- */
 
-            .result-row {
-              display: flex;
-              justify-content: space-between;
-              font-size: 0.95rem;
-            }
-
-            .result-row span:last-child {
-              font-weight: 600;
-            }
-
-            .result-total span:last-child {
-              color: #fbbf24;
-              font-size: 1rem;
+            .section-title {
+              font-family: 'Cinzel Decorative', serif;
+              text-transform: uppercase;
+              letter-spacing: 0.18em;
+              font-size: 0.86rem;
+              margin-bottom: 0.8rem;
+              color: #f9dfaa;
             }
 
             table {
-              font-size: 0.85rem;
+              font-size: 0.8rem;
+              font-family: 'Spectral', serif;
             }
 
             th {
-              background-color: rgba(31,41,55,0.85) !important;
-              color: #fde68a !important;
+              background-color: #1a130f !important;
+              color: #f9deb1 !important;
+              border-bottom: 1px solid #46301a !important;
+            }
+
+            td {
+              border-color: #3b2816 !important;
+            }
+
+            .ledger-footer-text {
+              font-family: 'Spectral', serif;
+              font-size: 0.78rem;
+              color: #b89c6f;
+              margin-top: 0.3rem;
+              text-align: center;
+              font-style: italic;
             }
             """
         ),
@@ -240,39 +451,60 @@ app_ui = ui.page_fluid(
         ui.div(
             {"class": "app-header-inner"},
             ui.div(
-                {"class": "app-title-block"},
-                ui.span("The Gilded Tankard", class_="app-title"),
-                ui.span("Tavern Management Ledger", class_="app-subtitle"),
+                {"class": "brand-block"},
+                ui.div("🍺", class_="brand-icon"),
+                ui.div(
+                    ui.div("THE GILDED TANKARD", class_="brand-text-main"),
+                    ui.div("TAVERN MANAGEMENT SYSTEM", class_="brand-text-sub"),
+                ),
             ),
-            ui.div("May fortune flavour your brew.", class_="app-tagline"),
+            ui.div("MAY FORTUNE FLAVOUR YOUR BREW", class_="header-tagline"),
         ),
     ),
 
     ui.div(
-        {"class": "app-wrapper"},
-
-        ui.row(
-            # Investment + flair
-            ui.column(
-                4,
+        {"class": "app-shell"},
+        ui.div(
+            {"class": "main-grid"},
+            # LEFT COLUMN
+            ui.div(
+                {"class": "left-stack"},
                 ui.div(
                     {"class": "glass-panel"},
-                    ui.h3("Investment"),
+                    ui.div(
+                        {"class": "panel-header"},
+                        ui.div("🪙", class_="panel-glyph"),
+                        ui.div(
+                            ui.div("TREASURY INVESTMENT", class_="panel-title"),
+                            ui.div("Gold Pieces (gp) to invest", class_="panel-caption"),
+                        ),
+                    ),
+                    ui.div("Gold Pieces (gp) to invest", class_="field-label"),
                     ui.input_numeric(
                         "investment",
-                        "Gold invested this tenday (gp)",
-                        value=100,
+                        label=None,
+                        value=0,
                         min=0,
                         step=10,
                     ),
-                    ui.help_text(
-                        "* Investment is optional – set to 0 if you just want to see the percentage."
+                    ui.div(
+                        "*Optional: Enter 0 to test fortune without gold.",
+                        class_="help-text",
                     ),
                 ),
                 ui.div(
                     {"class": "glass-panel"},
-                    ui.h3("Narrative flair"),
-                    ui.p("How richly did you describe the tavern's ambience and drama?"),
+                    ui.div(
+                        {"class": "panel-header"},
+                        ui.div("✨", class_="panel-glyph"),
+                        ui.div(
+                            ui.div("NARRATIVE FLAIR", class_="panel-title"),
+                            ui.div(
+                                "How well did you describe the tavern's atmosphere this tenday?",
+                                class_="panel-caption",
+                            ),
+                        ),
+                    ),
                     ui.input_radio_buttons(
                         "flair",
                         None,
@@ -286,32 +518,33 @@ app_ui = ui.page_fluid(
                 ),
             ),
 
-            # Wheel of Fortune
-            ui.column(
-                4,
+            # RIGHT COLUMN – WHEEL + EARNINGS
+            ui.div(
                 ui.div(
-                    {"class": "glass-panel"},
-                    ui.h3("Wheel of Fortune"),
+                    {"class": "glass-panel wheel-panel"},
+                    ui.div("WHEEL OF FORTUNE", class_="wheel-title"),
                     ui.div(
-                        {"class": "wheel-wrapper"},
-                        ui.div({"class": "wheel-pointer"}),
-                        ui.output_ui("wheel_ui"),
-                        ui.input_action_button(
-                            "spin",
-                            "Spin",
-                            class_="wheel-center-button",
+                        {"class": "wheel-shell"},
+                        ui.div(
+                            {"class": "wheel-wrapper"},
+                            ui.div({"class": "wheel-halo"}),
+                            ui.div({"class": "wheel-pointer"}),
+                            ui.div({"class": "wheel-pointer-pin"}),
+                            ui.output_ui("wheel_ui"),
+                            ui.input_action_button(
+                                "spin",
+                                ui.HTML("<span class='wheel-center-text'>SPIN<br>FOR GOLD</span>"),
+                                class_="wheel-center-button",
+                            ),
                         ),
+                        ui.div("Beware the Loss sector!", class_="loss-warning"),
                     ),
-                    ui.div({"class": "status-text"}, ui.output_text("status")),
+                    ui.div(ui.output_text("status"), class_="status-text"),
                 ),
-            ),
-
-            # Earnings summary
-            ui.column(
-                4,
+                ui.br(),
                 ui.div(
                     {"class": "glass-panel"},
-                    ui.h3("Earnings"),
+                    ui.div("THE EARNINGS", class_="section-title"),
                     ui.output_table("latest_summary"),
                 ),
             ),
@@ -319,17 +552,17 @@ app_ui = ui.page_fluid(
 
         ui.br(),
 
-        # Ledger
         ui.div(
             {"class": "glass-panel"},
-            ui.h3("Tavern ledger"),
+            ui.div("THE TAVERN LEDGER", class_="section-title"),
             ui.output_table("ledger_table"),
+            ui.div(ui.output_text("ledger_message"), class_="ledger-footer-text"),
         ),
     ),
 )
 
 
-# --- Server ---
+# ========================= SERVER =========================
 
 def server(input, output, session):
     # Rotation of wheel (degrees)
@@ -342,8 +575,7 @@ def server(input, output, session):
     @reactive.effect
     @reactive.event(input.spin)
     def _spin_wheel():
-        investment = input.investment() or 0.0
-        # narrative flair %
+        investment = float(input.investment() or 0.0)
         flair_pct = int(input.flair() or "0")
 
         # Decide loss vs profit
@@ -352,130 +584,124 @@ def server(input, output, session):
         profit_degrees = 360 - loss_degrees
 
         if is_loss:
-            # Fixed -10% result
-            result_pct = LOSS_PERCENTAGE
-            # Choose a target gradient angle within the red slice (0–loss_degrees)
+            result_pct = LOSS_PERCENTAGE  # fixed -10%
             margin = 2
             target_angle = margin + random.random() * (loss_degrees - 2 * margin)
         else:
-            # Uniform continuum from 20–200%
             u = random.random()
             result_pct = MIN_PROFIT_PERCENT + u * (MAX_PROFIT_PERCENT - MIN_PROFIT_PERCENT)
-            # Map that uniformly across the non-loss arc
             target_angle = loss_degrees + u * profit_degrees
 
-        # Pointer is at "top" (90deg in gradient coordinates).
-        # Rotate wheel so that target_angle is under the pointer.
+        # Pointer is at top (90°) – rotate wheel to bring target to pointer.
         extra_spins = 360 * random.randint(4, 7)
         final_rot = rotation() + extra_spins + (90 - target_angle)
         rotation.set(final_rot)
 
         # Earnings:
-        # base final = invested + profit from wheel %
         base_final = investment * (1 + result_pct / 100.0)
-        # Flair multiplies that final amount
         final_with_flair = base_final * (1 + flair_pct / 100.0)
-        total_profit = final_with_flair - investment
+        net_profit = final_with_flair - investment
 
-        res = {
-            "Date": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
-            "Investment (gp)": round(investment, 1),
-            "Wheel %": round(result_pct, 1),
-            "Flair %": flair_pct,
-            "Total profit (gp)": round(total_profit, 1),
-            "Final amount (gp)": round(final_with_flair, 1),
+        state = {
+            "date": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
+            "investment": investment,
+            "wheel_pct": result_pct,
+            "flair_pct": flair_pct,
+            "net_profit": net_profit,
+            "final_amount": final_with_flair,
         }
 
-        last_result.set(res)
-        ledger.set([res] + ledger())
+        last_result.set(state)
+        ledger.set([state] + ledger())
 
-        # Flavour text
-        if is_loss:
-            title = "Loss this tenday."
-            flavour = "The dice were cold and the patrons colder – the house takes its due."
-        elif result_pct >= 150:
-            title = "An outrageous success!"
-            flavour = "The taproom shook with song and coin. The city will speak of it for weeks."
-        else:
-            title = "A respectable haul."
-            flavour = "Not legendary, but solid coin in the coffer and smiles on weary faces."
-
-        modal = ui.modal(
-            ui.p(flavour),
-            ui.hr(),
-            ui.div(
-                {"class": "result-grid"},
-                ui.div(
-                    {"class": "result-row"},
-                    ui.span("Wheel result:"),
-                    ui.span(f"{res['Wheel %']:.1f}%"),
-                ),
-                ui.div(
-                    {"class": "result-row"},
-                    ui.span("Narrative flair:"),
-                    ui.span(f"+{flair_pct}%"),
-                ),
-                ui.div(
-                    {"class": "result-row"},
-                    ui.span("Total profit:"),
-                    ui.span(f"{res['Total profit (gp)']:.1f} gp"),
-                ),
-                ui.div(
-                    {"class": "result-row result-total"},
-                    ui.span("Final amount:"),
-                    ui.span(f"{res['Final amount (gp)']:.1f} gp"),
-                ),
-            ),
-            title=title,
-            easy_close=True,
-            footer=ui.modal_button("Close"),
-        )
-        ui.modal_show(modal)
-
-    # Wheel UI – just the spinning disc
+    # --- Wheel disc ---
+    @output
     @render.ui
     def wheel_ui():
         return ui.div(
             {"class": "wheel", "style": f"transform: rotate({rotation()}deg);"},
+            ui.div({"class": "wheel-inner-ring"}),
+            ui.div({"class": "wheel-shine"}),
+            ui.div({"class": "wheel-tick wheel-tick-top"}),
+            ui.div({"class": "wheel-tick wheel-tick-bottom"}),
+            ui.div({"class": "wheel-tick wheel-tick-left"}),
+            ui.div({"class": "wheel-tick wheel-tick-right"}),
+            ui.div(
+                {"class": "wheel-loss-label"},
+                ui.div("LOSS", class_="wheel-loss-label-main"),
+                ui.div("-10%", class_="wheel-loss-label-sub"),
+            ),
         )
 
-    # One-line status under the wheel
+    # --- Status text under wheel ---
+    @output
     @render.text
     def status():
         res = last_result()
         if res is None:
-            return "Spin the wheel to see how this tenday's trade went."
+            return "The ledger is empty. Spin the wheel to record business."
 
-        pct = res["Wheel %"]
-        profit = res["Total profit (gp)"]
-        flair_pct = res["Flair %"]
+        pct = res["wheel_pct"]
+        net = res["net_profit"]
+        flair_pct = res["flair_pct"]
 
         if pct < 0:
             return (
-                f"Loss of {pct:.1f}% — down roughly {abs(profit):.1f} gp, "
+                f"Loss of {pct:.1f}% — down roughly {abs(net):.1f} gp, "
                 f"even with {flair_pct}% narrative flair."
             )
         else:
             return (
-                f"Gain of {pct:.1f}% — up about {profit:.1f} gp "
-                f"after a {flair_pct}% flair bonus."
+                f"Gain of {pct:.1f}% — about {net:.1f} gp profit after a {flair_pct}% flair bonus."
             )
 
-    # Latest result table (1 row)
+    # --- Earnings (latest spin only) ---
+    @output
     @render.table
     def latest_summary():
         res = last_result()
         if res is None:
             return []
-        return [res]
 
-    # Full ledger table
+        return [
+            {
+                "Investment (gp)": round(res["investment"], 1),
+                "Fortune wheel": f"{res['wheel_pct']:.1f}%",
+                "Flair": f"+{res['flair_pct']}%",
+                "Net profit (gp)": round(res["net_profit"], 1),
+                "Final amount (gp)": round(res["final_amount"], 1),
+            }
+        ]
+
+    # --- Ledger table ---
+    @output
     @render.table
     def ledger_table():
         rows = ledger()
         if not rows:
             return []
-        return rows
+
+        display_rows = []
+        for r in rows:
+            display_rows.append(
+                {
+                    "Date": r["date"],
+                    "Investment (gp)": round(r["investment"], 1),
+                    "Fortune wheel": f"{r['wheel_pct']:.1f}%",
+                    "Flair": f"+{r['flair_pct']}%",
+                    "Net profit (gp)": round(r["net_profit"], 1),
+                    "Final amount (gp)": round(r["final_amount"], 1),
+                }
+            )
+        return display_rows
+
+    # Footer message for ledger
+    @output
+    @render.text
+    def ledger_message():
+        if not ledger():
+            return "The ledger is empty. Spin the wheel to record business."
+        return ""
 
 
 app = App(app_ui, server)
