@@ -1,6 +1,8 @@
 from shiny import App, ui, render, reactive
 from datetime import datetime
 import random
+import pandas
+
 
 # --- Game constants ---
 LOSS_CHANCE = 0.10          # 10% chance to suffer a loss
