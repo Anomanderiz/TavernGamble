@@ -280,17 +280,17 @@ app_ui = ui.page_fluid(
 
             /* Image wheel */
             .wheel {
-              width: 260px;
+             width: 260px;
               height: 260px;
               border-radius: 50%;
               border: 6px solid #f7c956;
               box-shadow: 0 0 32px rgba(0,0,0,0.9);
               transition: transform 4s cubic-bezier(0.22, 0.61, 0.36, 1);
               transform-origin: 50% 50%;
+              transform: scale(1.6) rotate(0deg);  /* zoom even before first spin */
               display: block;
-              object-fit: contain;
-              z-index: 1;
             }
+
 
             .wheel-pointer,
             .wheel-pointer-pin {
