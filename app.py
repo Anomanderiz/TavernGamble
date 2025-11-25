@@ -265,8 +265,8 @@ app_ui = ui.page_fluid(
 
             .wheel-wrapper {
               position: relative;
-              width: min(280px, 70vw);
-              aspect-ratio: 1 / 1;
+              width: 280px;
+              height: 280px;
               margin: 0.3rem auto 0.2rem auto;
               display: flex;
               justify-content: center;
@@ -275,11 +275,8 @@ app_ui = ui.page_fluid(
 
             .wheel-halo {
               position: absolute;
-              top: 50%;
-              left: 50%;
-              width: 115%;
-              height: 115%;
-              transform: translate(-50%, -50%);
+              width: 340px;
+              height: 340px;
               border-radius: 50%;
               background: radial-gradient(circle at center, rgba(255,203,120,0.25), transparent 60%);
               filter: blur(4px);
@@ -628,9 +625,9 @@ app_ui = ui.page_fluid(
                         "flair",
                         None,
                         choices={
-                            "Passable: 5%": "5",
-                            "Good: 10%": "10",
-                            "Excellent: 15%": "15",
+                            "5": "Passable: 5%",
+                            "10": "Good: 10%",
+                            "15": "Excellent: 15%",
                         },
                         selected="5",
                     ),
