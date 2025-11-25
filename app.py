@@ -261,8 +261,8 @@ app_ui = ui.page_fluid(
 
             .wheel-wrapper {
               position: relative;
-              width: 500;
-              height: 600;
+              width: 320;
+              height: 320;
               margin: 0.3rem auto 0.2rem auto;
               display: flex;
               justify-content: center;
@@ -283,8 +283,8 @@ app_ui = ui.page_fluid(
               position: absolute;
               top: 50%;
               left: 50%;
-              width: 280px;                 /* tweak up/down if you want it bigger/smaller */
-              height: 280px;
+              width: 500px;                 /* tweak up/down if you want it bigger/smaller */
+              height: 500px;
               transform-origin: 50% 50%;
               transform: translate(-50%, -50%) rotate(0deg);
               transition: transform 4s cubic-bezier(0.22, 0.61, 0.36, 1);
