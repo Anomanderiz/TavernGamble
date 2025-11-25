@@ -2,6 +2,7 @@ from shiny import App, ui, render, reactive
 from datetime import datetime
 import random
 import pandas as pd
+from pathlib import Path
 
 # --- Game constants ---
 LOSS_CHANCE = 0.10          # 10% chance to suffer a loss
@@ -628,7 +629,7 @@ app_ui = ui.page_fluid(
                             ui.div({"class": "wheel-halo"}),
                             ui.tags.img(
                                 id="wheel-disc",
-                                src="assets/Wheel.png",
+                                src="Wheel.png",
                                 class_="wheel",
                             ),
                             ui.div({"class": "wheel-pointer"}),
@@ -865,4 +866,6 @@ def server(input, output, session):
         return ""
 
 
-app = App(app_ui, server)
+assets_dir = Path(__file__).parent / "assets"
+app = App(app_ui, server, static_assets=assets_dir)
+
