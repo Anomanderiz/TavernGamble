@@ -27,7 +27,7 @@ app_ui = ui.page_fluid(
               min-height: 100vh;
             }
 
-            /* selection highlight: warm gold + white text */
+            /* Selection highlight: warm gold + white text */
             ::selection {
               background: #f97316;
               color: #ffffff;
@@ -171,7 +171,7 @@ app_ui = ui.page_fluid(
             .help-text {
               font-family: 'Spectral', serif;
               font-size: 0.75rem;
-              color: #facc85;
+              color: #ffffff;   /* bright & legible */
               margin-top: 0.25rem;
             }
 
@@ -407,7 +407,7 @@ app_ui = ui.page_fluid(
               font-size: 0.8rem;
               font-family: 'Spectral', serif;
               background-color: #18100d;
-              color: #fef3d5;
+              color: #ffffff;   /* body text white */
             }
 
             table thead tr th {
@@ -419,6 +419,7 @@ app_ui = ui.page_fluid(
             table tbody tr td {
               background-color: #18100d !important;
               border-color: #3b2816 !important;
+              color: #ffffff !important;
             }
 
             .table-striped > tbody > tr:nth-of-type(odd) > td {
@@ -633,7 +634,6 @@ app_ui = ui.page_fluid(
                             ),
                         ),
                     ),
-                    # updated labels: Passable / Good / Excellent with %
                     ui.input_radio_buttons(
                         "flair",
                         None,
@@ -695,8 +695,8 @@ app_ui = ui.page_fluid(
 
 def server(input, output, session):
     rotation = reactive.Value(0.0)
-    last_result = reactive.Value(None)
-    ledger = reactive.Value([])
+    last_result = reactive.Value(None)      # dict or None
+    ledger = reactive.Value([])            # list[dict]
 
     @reactive.effect
     @reactive.event(input.spin)
@@ -704,6 +704,7 @@ def server(input, output, session):
         investment = float(input.investment() or 0.0)
         flair_pct = int(input.flair() or "0")
 
+        # Determine loss vs profit
         is_loss = random.random() < LOSS_CHANCE
         loss_degrees = 360 * LOSS_CHANCE
         profit_degrees = 360 - loss_degrees
@@ -717,11 +718,12 @@ def server(input, output, session):
             result_pct = MIN_PROFIT_PERCENT + u * (MAX_PROFIT_PERCENT - MIN_PROFIT_PERCENT)
             target_angle = loss_degrees + u * profit_degrees
 
+        # Rotate wheel so target is under pointer (pointer at 90°)
         extra_spins = 360 * random.randint(4, 7)
         final_rot = rotation() + extra_spins + (90 - target_angle)
         rotation.set(final_rot)
 
-        # earnings
+        # Earnings maths
         base_profit = investment * (result_pct / 100.0)
         base_outcome = investment + base_profit
         flair_bonus_gp = base_outcome * (flair_pct / 100.0)
@@ -742,7 +744,7 @@ def server(input, output, session):
         last_result.set(state)
         ledger.set([state] + ledger())
 
-        # modal
+        # --- Tenday Results modal ---
         sign = "+" if result_pct >= 0 else ""
         wheel_str = f"{sign}{result_pct:.1f}%"
         flair_str = f"+{flair_pct}%"
@@ -784,7 +786,12 @@ def server(input, output, session):
                     ui.span(f"{net_profit:.0f} gp", class_="results-net-value"),
                 ),
                 ui.div(
-                    {"style": "margin-top:0.35rem; display:flex; justify-content:space-between;"},
+                    {
+                        "style": (
+                            "margin-top:0.35rem; "
+                            "display:flex; justify-content:space-between;"
+                        )
+                    },
                     ui.span("FINAL AMOUNT", class_="results-final-label"),
                     ui.span(f"{final_with_flair:.0f} gp", class_="results-final-value"),
                 ),
@@ -800,6 +807,7 @@ def server(input, output, session):
         )
         ui.modal_show(modal)
 
+    # Wheel disc
     @render.ui
     def wheel_ui():
         return ui.div(
@@ -817,6 +825,7 @@ def server(input, output, session):
             ),
         )
 
+    # Status text
     @render.text
     def status():
         res = last_result()
@@ -837,6 +846,7 @@ def server(input, output, session):
                 f"Gain of {pct:.1f}% — about {net:.1f} gp profit after a {flair_pct}% flair bonus."
             )
 
+    # Latest spin summary
     @render.table
     def latest_summary():
         res = last_result()
@@ -847,8 +857,10 @@ def server(input, output, session):
             "Net profit (gp)",
             "Final amount (gp)",
         ]
+
         if res is None:
             return pd.DataFrame(columns=cols)
+
         row = {
             "Investment (gp)": round(res["investment"], 1),
             "Fortune wheel": f"{res['wheel_pct']:.1f}%",
@@ -858,6 +870,7 @@ def server(input, output, session):
         }
         return pd.DataFrame([row], columns=cols)
 
+    # Ledger table
     @render.table
     def ledger_table():
         rows = ledger()
@@ -869,6 +882,7 @@ def server(input, output, session):
             "Net profit (gp)",
             "Final amount (gp)",
         ]
+
         if not rows:
             return pd.DataFrame(columns=cols)
 
@@ -885,6 +899,7 @@ def server(input, output, session):
         ]
         return pd.DataFrame(display_rows, columns=cols)
 
+    # Ledger footer
     @render.text
     def ledger_message():
         if not ledger():
