@@ -273,15 +273,6 @@ app_ui = ui.page_fluid(
               align-items: center;
             }
 
-            .wheel-halo {
-              position: absolute;
-              width: 340px;
-              height: 340px;
-              border-radius: 50%;
-              background: radial-gradient(circle at center, rgba(255,203,120,0.25), transparent 60%);
-              filter: blur(4px);
-            }
-
             .wheel {
               position: absolute;
               top: 50%;
@@ -643,7 +634,6 @@ app_ui = ui.page_fluid(
                         {"class": "wheel-shell"},
                         ui.div(
                             {"class": "wheel-wrapper"},
-                            ui.div({"class": "wheel-halo"}),
                             ui.tags.img(
                                 id="wheel-disc",
                                 src="Wheel.png",  # served from static_assets
