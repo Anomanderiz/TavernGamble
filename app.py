@@ -290,8 +290,8 @@ app_ui = ui.page_fluid(
               position: absolute;
               top: 50%;
               left: 50%;
-              width: 250%;
-              height: 250%;
+              width: 350%;
+              height: 350%;
               max-width: none;
               max-height: none;
               object-fit: contain;
@@ -310,7 +310,7 @@ app_ui = ui.page_fluid(
 
             .wheel-pointer {
               position: absolute;
-              top: -3px;
+              top: -6px;
               left: 50%;
               transform: translateX(-50%);
               width: 0;
