@@ -24,17 +24,17 @@ app_ui = ui.page_fluid(
                 "family=Spectral:wght@400;600&display=swap"
             ),
         ),
-        # JS handler: rotate the wheel image on server message
+        # JS handler: rotate ONLY the wheel image on server message
         ui.tags.script(
             """
             document.addEventListener('DOMContentLoaded', function() {
               if (window.Shiny) {
                 Shiny.addCustomMessageHandler('spin_wheel', function(message) {
-                  var el = document.getElementById('wheel-disc');
+                  var el = document.getElementById('wheel-disc-img');
                   if (!el) return;
-                  // Keep image centred AND zoomed while rotating
+                  // Keep centred; rotate, but do NOT scale here
                   el.style.transform =
-                    'translate(-50%, -50%) rotate(' + message.angle + 'deg) scale(1.35)';
+                    'translate(-50%, -50%) rotate(' + message.angle + 'deg)';
                 });
               }
             });
@@ -270,26 +270,34 @@ app_ui = ui.page_fluid(
               width: 280px;
               height: 280px;
               margin: 0.3rem auto 0.2rem auto;
-              display: flex;
-              justify-content: center;
-              align-items: center;
-              overflow: visible;
+            }
+
+            /* Halo disc (fixed size, independent of image scale) */
+            .wheel-disc {
+              position: absolute;
+              top: 50%;
+              left: 50%;
+              width: 280px;
+              height: 280px;
+              transform: translate(-50%, -50%);
+              border-radius: 50%;
+              background: radial-gradient(circle at center, #2b231e 0, #15100d 68%);
+              box-shadow: 0 0 40px rgba(0,0,0,0.9);
+              overflow: hidden;
             }
 
             .wheel {
               position: absolute;
               top: 50%;
               left: 50%;
-              width: 100%;
-              height: 100%;
-              max-width: 100%;
-              max-height: 100%;
+              width: 118%;
+              height: 118%;
+              max-width: none;
+              max-height: none;
               object-fit: contain;
               transform-origin: 50% 50%;
-              /* Start already zoomed in so the PNG fills the wheel */
-              transform: translate(-50%, -50%) rotate(0deg) scale(1.35);
+              transform: translate(-50%, -50%) rotate(0deg);
               transition: transform 4s cubic-bezier(0.22, 0.61, 0.36, 1);
-              box-shadow: 0 0 32px rgba(0,0,0,0.9);
               border-radius: 50%;
               border: none;
               z-index: 1;
@@ -327,8 +335,11 @@ app_ui = ui.page_fluid(
 
             .wheel-center-button {
               position: absolute;
+              top: 50%;
+              left: 50%;
               width: 110px;
               height: 110px;
+              transform: translate(-50%, -50%);
               border-radius: 50%;
               border: 2px solid rgba(68,41,13,0.9);
               background: radial-gradient(circle at 30% 0%, #fff5d1, #f5b037);
@@ -638,10 +649,13 @@ app_ui = ui.page_fluid(
                         {"class": "wheel-shell"},
                         ui.div(
                             {"class": "wheel-wrapper"},
-                            ui.tags.img(
-                                id="wheel-disc",
-                                src="Wheel.png",  # served from static_assets
-                                class_="wheel",
+                            ui.div(
+                                {"class": "wheel-disc"},
+                                ui.tags.img(
+                                    id="wheel-disc-img",
+                                    src="Wheel.png",  # served from static_assets
+                                    class_="wheel",
+                                ),
                             ),
                             ui.div({"class": "wheel-pointer"}),
                             ui.div({"class": "wheel-pointer-pin"}),
