@@ -1,12 +1,13 @@
 from shiny import App, ui, render, reactive
-import random
 from datetime import datetime
+import random
 
-# --- Game constants (mirroring types.ts) ---
-LOSS_CHANCE = 0.10          # 10% chance to land in the loss slice
-LOSS_PERCENTAGE = -10       # -10% outcome on loss
-MIN_PROFIT_PERCENT = 20     # minimum profit %
-MAX_PROFIT_PERCENT = 200    # maximum profit %
+# --- Game constants from your prompt ---
+LOSS_CHANCE = 0.10          # 10% chance to suffer a loss
+LOSS_PERCENTAGE = -10       # -10% result when loss happens
+MIN_PROFIT_PERCENT = 20     # 20% minimum profit
+MAX_PROFIT_PERCENT = 200    # 200% maximum profit
+
 
 # --- UI ---
 
@@ -15,7 +16,7 @@ app_ui = ui.page_fluid(
         ui.tags.title("The Gilded Tankard — Tavern Manager"),
         ui.tags.link(
             rel="stylesheet",
-            href="https://fonts.googleapis.com/css2?family=Cinzel+Decorative:wght@700&family=Spectral:wght@400;600&display=swap"
+            href="https://fonts.googleapis.com/css2?family=Cinzel+Decorative:wght@700&family=Spectral:wght@400;600&display=swap",
         ),
         ui.tags.style(
             """
@@ -123,6 +124,7 @@ app_ui = ui.page_fluid(
               position: relative;
               display: flex;
               justify-content: center;
+              align-items: center;
               margin-top: 0.75rem;
               margin-bottom: 0.75rem;
             }
@@ -133,11 +135,12 @@ app_ui = ui.page_fluid(
               border-radius: 50%;
               border: 6px solid #facc15;
               box-shadow: 0 0 32px rgba(0,0,0,0.9);
+              /* Red loss slice is 10% of the circle */
               background-image: conic-gradient(
-                #7f1d1d 0deg 36deg,      /* ~10% loss sector */
-                #f97316 36deg 120deg,
-                #fbbf24 120deg 220deg,
-                #22c55e 220deg 360deg
+                #7f1d1d 0deg 36deg,      /* 10% loss sector */
+                #f97316 36deg 140deg,
+                #fbbf24 140deg 240deg,
+                #22c55e 240deg 360deg
               );
               transition: transform 4s cubic-bezier(0.22, 0.61, 0.36, 1);
               position: relative;
@@ -164,6 +167,30 @@ app_ui = ui.page_fluid(
               border-right: 12px solid transparent;
               border-bottom: 22px solid #fbbf24;
               filter: drop-shadow(0 4px 6px rgba(0,0,0,0.8));
+            }
+
+            .wheel-center-button {
+              position: absolute;
+              width: 110px;
+              height: 110px;
+              border-radius: 50%;
+              border: 2px solid rgba(15,23,42,0.85);
+              background: radial-gradient(circle at 30% 0%, #fef3c7, #fbbf24);
+              display: flex;
+              align-items: center;
+              justify-content: center;
+              cursor: pointer;
+              font-family: 'Cinzel Decorative', serif;
+              font-size: 0.8rem;
+              text-transform: uppercase;
+              letter-spacing: 0.14em;
+              color: #1f2937;
+              text-align: center;
+              box-shadow: 0 0 16px rgba(0,0,0,0.9);
+            }
+
+            .wheel-center-button:hover {
+              filter: brightness(1.05);
             }
 
             .status-text {
@@ -225,6 +252,7 @@ app_ui = ui.page_fluid(
         {"class": "app-wrapper"},
 
         ui.row(
+            # Investment + flair
             ui.column(
                 4,
                 ui.div(
@@ -237,7 +265,9 @@ app_ui = ui.page_fluid(
                         min=0,
                         step=10,
                     ),
-                    ui.help_text("* Enter 0 if you just want to spin without risking coin."),
+                    ui.help_text(
+                        "* Investment is optional – set to 0 if you just want to see the percentage."
+                    ),
                 ),
                 ui.div(
                     {"class": "glass-panel"},
@@ -253,15 +283,10 @@ app_ui = ui.page_fluid(
                         },
                         selected="5",
                     ),
-                    ui.br(),
-                    ui.input_action_button(
-                        "spin",
-                        "Spin the wheel",
-                        class_="btn btn-warning btn-lg spin-button",
-                    ),
                 ),
             ),
 
+            # Wheel of Fortune
             ui.column(
                 4,
                 ui.div(
@@ -271,16 +296,22 @@ app_ui = ui.page_fluid(
                         {"class": "wheel-wrapper"},
                         ui.div({"class": "wheel-pointer"}),
                         ui.output_ui("wheel_ui"),
+                        ui.input_action_button(
+                            "spin",
+                            "Spin",
+                            class_="wheel-center-button",
+                        ),
                     ),
                     ui.div({"class": "status-text"}, ui.output_text("status")),
                 ),
             ),
 
+            # Earnings summary
             ui.column(
                 4,
                 ui.div(
                     {"class": "glass-panel"},
-                    ui.h3("Latest outcome"),
+                    ui.h3("Earnings"),
                     ui.output_table("latest_summary"),
                 ),
             ),
@@ -288,6 +319,7 @@ app_ui = ui.page_fluid(
 
         ui.br(),
 
+        # Ledger
         ui.div(
             {"class": "glass-panel"},
             ui.h3("Tavern ledger"),
@@ -296,74 +328,77 @@ app_ui = ui.page_fluid(
     ),
 )
 
+
 # --- Server ---
 
 def server(input, output, session):
-    rotation = reactive.Value(0.0)
-    last_result = reactive.Value(None)      # dict or None
-    ledger = reactive.Value([])            # list of dicts
+    # Rotation of wheel (degrees)
+    rotation = reactive.value(0.0)
+    # Last spin result (dict) or None
+    last_result = reactive.value(None)
+    # Ledger as list of dicts, newest first
+    ledger = reactive.value([])
 
     @reactive.effect
     @reactive.event(input.spin)
     def _spin_wheel():
-        investment = input.investment() or 0
-        if investment < 0:
-            ui.notification_show("Investment cannot be negative.", type="error")
-            return
+        investment = input.investment() or 0.0
+        # narrative flair %
+        flair_pct = int(input.flair() or "0")
 
-        flair_pct = int(input.flair() or "5")
-
-        # Geometry: same as React — loss slice first, then profit arc.
+        # Decide loss vs profit
+        is_loss = random.random() < LOSS_CHANCE
         loss_degrees = 360 * LOSS_CHANCE
         profit_degrees = 360 - loss_degrees
 
-        is_loss = random.random() < LOSS_CHANCE
-
         if is_loss:
-            result_value = LOSS_PERCENTAGE
-            buffer = 2
-            target_angle_rel = buffer + random.random() * (loss_degrees - 2 * buffer)
+            # Fixed -10% result
+            result_pct = LOSS_PERCENTAGE
+            # Choose a target gradient angle within the red slice (0–loss_degrees)
+            margin = 2
+            target_angle = margin + random.random() * (loss_degrees - 2 * margin)
         else:
-            range_ = MAX_PROFIT_PERCENT - MIN_PROFIT_PERCENT
-            random_factor = random.random()
-            result_value = MIN_PROFIT_PERCENT + random_factor * range_
-            target_angle_rel = loss_degrees + (random_factor * profit_degrees)
+            # Uniform continuum from 20–200%
+            u = random.random()
+            result_pct = MIN_PROFIT_PERCENT + u * (MAX_PROFIT_PERCENT - MIN_PROFIT_PERCENT)
+            # Map that uniformly across the non-loss arc
+            target_angle = loss_degrees + u * profit_degrees
 
-        extra_spins = 360 * random.randint(5, 8)
-        final_rotation = rotation() + extra_spins + (360 - target_angle_rel)
-        rotation.set(final_rotation)
+        # Pointer is at "top" (90deg in gradient coordinates).
+        # Rotate wheel so that target_angle is under the pointer.
+        extra_spins = 360 * random.randint(4, 7)
+        final_rot = rotation() + extra_spins + (90 - target_angle)
+        rotation.set(final_rot)
 
-        # Profit maths (mirrors App.tsx)
-        base_profit = investment * (result_value / 100.0)
-        gross_total = investment + base_profit
-        flair_bonus_amount = gross_total * (flair_pct / 100.0)
-        final_amount = gross_total + flair_bonus_amount
-        total_profit = final_amount - investment
+        # Earnings:
+        # base final = invested + profit from wheel %
+        base_final = investment * (1 + result_pct / 100.0)
+        # Flair multiplies that final amount
+        final_with_flair = base_final * (1 + flair_pct / 100.0)
+        total_profit = final_with_flair - investment
 
         res = {
             "Date": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
-            "Investment (gp)": round(investment),
-            "Wheel %": round(result_value, 1),
+            "Investment (gp)": round(investment, 1),
+            "Wheel %": round(result_pct, 1),
             "Flair %": flair_pct,
-            "Base profit (gp)": round(base_profit),
-            "Flair bonus (gp)": round(flair_bonus_amount),
-            "Net profit (gp)": round(total_profit),
-            "Final amount (gp)": round(final_amount),
+            "Total profit (gp)": round(total_profit, 1),
+            "Final amount (gp)": round(final_with_flair, 1),
         }
 
         last_result.set(res)
         ledger.set([res] + ledger())
 
-        # Result modal
-        if result_value < 0:
-            title = "Misfortune strikes!"
-            flavour = "The wheel has dealt a cruel hand – the patrons were not impressed."
-        elif result_value >= 100:
-            title = "A roaring success!"
-            flavour = "The taproom thrummed with coin and laughter. Your tale will be told for weeks."
+        # Flavour text
+        if is_loss:
+            title = "Loss this tenday."
+            flavour = "The dice were cold and the patrons colder – the house takes its due."
+        elif result_pct >= 150:
+            title = "An outrageous success!"
+            flavour = "The taproom shook with song and coin. The city will speak of it for weeks."
         else:
-            title = "A respectable tenday."
-            flavour = "Not legendary, but the candles will stay lit and the staff are paid."
+            title = "A respectable haul."
+            flavour = "Not legendary, but solid coin in the coffer and smiles on weary faces."
 
         modal = ui.modal(
             ui.p(flavour),
@@ -372,28 +407,23 @@ def server(input, output, session):
                 {"class": "result-grid"},
                 ui.div(
                     {"class": "result-row"},
-                    ui.span("Wheel outcome:"),
+                    ui.span("Wheel result:"),
                     ui.span(f"{res['Wheel %']:.1f}%"),
                 ),
                 ui.div(
                     {"class": "result-row"},
-                    ui.span("Narrative flair bonus:"),
+                    ui.span("Narrative flair:"),
                     ui.span(f"+{flair_pct}%"),
                 ),
                 ui.div(
                     {"class": "result-row"},
-                    ui.span("Base profit:"),
-                    ui.span(f"{res['Base profit (gp)']:+.0f} gp"),
-                ),
-                ui.div(
-                    {"class": "result-row"},
-                    ui.span("Flair bonus (gold):"),
-                    ui.span(f"{res['Flair bonus (gp)']:+.0f} gp"),
+                    ui.span("Total profit:"),
+                    ui.span(f"{res['Total profit (gp)']:.1f} gp"),
                 ),
                 ui.div(
                     {"class": "result-row result-total"},
                     ui.span("Final amount:"),
-                    ui.span(f"{res['Final amount (gp)']:.0f} gp"),
+                    ui.span(f"{res['Final amount (gp)']:.1f} gp"),
                 ),
             ),
             title=title,
@@ -402,48 +432,44 @@ def server(input, output, session):
         )
         ui.modal_show(modal)
 
-    @output
+    # Wheel UI – just the spinning disc
     @render.ui
     def wheel_ui():
-        # Single div whose rotation is animated via CSS transition
         return ui.div(
             {"class": "wheel", "style": f"transform: rotate({rotation()}deg);"},
-            # empty; purely visual
         )
 
-    @output
+    # One-line status under the wheel
     @render.text
     def status():
         res = last_result()
         if res is None:
             return "Spin the wheel to see how this tenday's trade went."
 
-        wheel_pct = res["Wheel %"]
-        net = res["Net profit (gp)"]
+        pct = res["Wheel %"]
+        profit = res["Total profit (gp)"]
         flair_pct = res["Flair %"]
 
-        if wheel_pct < 0:
+        if pct < 0:
             return (
-                f"Loss of {wheel_pct:.1f}% – down about {abs(net):.0f} gp, "
-                f"despite your {flair_pct}% flair."
+                f"Loss of {pct:.1f}% — down roughly {abs(profit):.1f} gp, "
+                f"even with {flair_pct}% narrative flair."
             )
         else:
             return (
-                f"Gain of {wheel_pct:.1f}% – up roughly {net:.0f} gp, "
-                f"helped by your {flair_pct}% flair bonus."
+                f"Gain of {pct:.1f}% — up about {profit:.1f} gp "
+                f"after a {flair_pct}% flair bonus."
             )
 
-    @output
+    # Latest result table (1 row)
     @render.table
     def latest_summary():
         res = last_result()
         if res is None:
             return []
-
-        # Small one-row table of the latest result
         return [res]
 
-    @output
+    # Full ledger table
     @render.table
     def ledger_table():
         rows = ledger()
