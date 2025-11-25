@@ -1,13 +1,12 @@
-from shiny import App, ui, render, reactive, output
+from shiny import App, ui, render, reactive
 from datetime import datetime
 import random
 
-# --- Game constants from your prompt ---
+# --- Game constants ---
 LOSS_CHANCE = 0.10          # 10% chance to suffer a loss
 LOSS_PERCENTAGE = -10       # -10% result when loss happens
 MIN_PROFIT_PERCENT = 20     # 20% minimum profit
 MAX_PROFIT_PERCENT = 200    # 200% maximum profit
-
 
 # ========================= UI =========================
 
@@ -223,10 +222,6 @@ app_ui = ui.page_fluid(
               font-weight: 600;
             }
 
-            .shiny-input-radiogroup input[type="radio"]:checked + span {
-              /* handled by browser, we style via :has if supported (not guaranteed) */
-            }
-
             /* ---------- WHEEL ---------- */
 
             .wheel-panel {
@@ -273,7 +268,6 @@ app_ui = ui.page_fluid(
               border-radius: 50%;
               border: 6px solid #f7c956;
               box-shadow: 0 0 32px rgba(0,0,0,0.9);
-              /* loss slice: first 10% in red */
               background-image: conic-gradient(
                 #b02613 0deg 36deg,
                 #f59e0b 36deg 140deg,
@@ -565,12 +559,9 @@ app_ui = ui.page_fluid(
 # ========================= SERVER =========================
 
 def server(input, output, session):
-    # Rotation of wheel (degrees)
-    rotation = reactive.value(0.0)
-    # Last spin result (dict) or None
-    last_result = reactive.value(None)
-    # Ledger as list of dicts, newest first
-    ledger = reactive.value([])
+    rotation = reactive.Value(0.0)
+    last_result = reactive.Value(None)
+    ledger = reactive.Value([])
 
     @reactive.effect
     @reactive.event(input.spin)
@@ -578,13 +569,12 @@ def server(input, output, session):
         investment = float(input.investment() or 0.0)
         flair_pct = int(input.flair() or "0")
 
-        # Decide loss vs profit
         is_loss = random.random() < LOSS_CHANCE
         loss_degrees = 360 * LOSS_CHANCE
         profit_degrees = 360 - loss_degrees
 
         if is_loss:
-            result_pct = LOSS_PERCENTAGE  # fixed -10%
+            result_pct = LOSS_PERCENTAGE
             margin = 2
             target_angle = margin + random.random() * (loss_degrees - 2 * margin)
         else:
@@ -592,12 +582,10 @@ def server(input, output, session):
             result_pct = MIN_PROFIT_PERCENT + u * (MAX_PROFIT_PERCENT - MIN_PROFIT_PERCENT)
             target_angle = loss_degrees + u * profit_degrees
 
-        # Pointer is at top (90°) – rotate wheel to bring target to pointer.
         extra_spins = 360 * random.randint(4, 7)
         final_rot = rotation() + extra_spins + (90 - target_angle)
         rotation.set(final_rot)
 
-        # Earnings:
         base_final = investment * (1 + result_pct / 100.0)
         final_with_flair = base_final * (1 + flair_pct / 100.0)
         net_profit = final_with_flair - investment
@@ -614,8 +602,7 @@ def server(input, output, session):
         last_result.set(state)
         ledger.set([state] + ledger())
 
-    # --- Wheel disc ---
-    @output
+    # Wheel disc
     @render.ui
     def wheel_ui():
         return ui.div(
@@ -633,8 +620,7 @@ def server(input, output, session):
             ),
         )
 
-    # --- Status text under wheel ---
-    @output
+    # Status text
     @render.text
     def status():
         res = last_result()
@@ -655,8 +641,7 @@ def server(input, output, session):
                 f"Gain of {pct:.1f}% — about {net:.1f} gp profit after a {flair_pct}% flair bonus."
             )
 
-    # --- Earnings (latest spin only) ---
-    @output
+    # Latest spin summary
     @render.table
     def latest_summary():
         res = last_result()
@@ -673,30 +658,26 @@ def server(input, output, session):
             }
         ]
 
-    # --- Ledger table ---
-    @output
+    # Ledger table
     @render.table
     def ledger_table():
         rows = ledger()
         if not rows:
             return []
 
-        display_rows = []
-        for r in rows:
-            display_rows.append(
-                {
-                    "Date": r["date"],
-                    "Investment (gp)": round(r["investment"], 1),
-                    "Fortune wheel": f"{r['wheel_pct']:.1f}%",
-                    "Flair": f"+{r['flair_pct']}%",
-                    "Net profit (gp)": round(r["net_profit"], 1),
-                    "Final amount (gp)": round(r["final_amount"], 1),
-                }
-            )
-        return display_rows
+        return [
+            {
+                "Date": r["date"],
+                "Investment (gp)": round(r["investment"], 1),
+                "Fortune wheel": f"{r['wheel_pct']:.1f}%",
+                "Flair": f"+{r['flair_pct']}%",
+                "Net profit (gp)": round(r["net_profit"], 1),
+                "Final amount (gp)": round(r["final_amount"], 1),
+            }
+            for r in rows
+        ]
 
-    # Footer message for ledger
-    @output
+    # Ledger footer text
     @render.text
     def ledger_message():
         if not ledger():
