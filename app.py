@@ -1,8 +1,8 @@
 from shiny import App, ui, render, reactive
 from datetime import datetime
+from pathlib import Path
 import random
 import pandas as pd
-from pathlib import Path
 
 # --- Game constants ---
 LOSS_CHANCE = 0.10          # 10% chance to suffer a loss
@@ -18,9 +18,13 @@ app_ui = ui.page_fluid(
         ui.tags.title("The Gilded Tankard — Tavern Management System"),
         ui.tags.link(
             rel="stylesheet",
-            href="https://fonts.googleapis.com/css2?family=Cinzel+Decorative:wght@700&family=Spectral:wght@400;600&display=swap",
+            href=(
+                "https://fonts.googleapis.com/css2?"
+                "family=Cinzel+Decorative:wght@700&"
+                "family=Spectral:wght@400;600&display=swap"
+            ),
         ),
-        # JS handler to rotate the wheel image
+        # JS handler: rotate the wheel image on server message
         ui.tags.script(
             """
             document.addEventListener('DOMContentLoaded', function() {
@@ -119,7 +123,7 @@ app_ui = ui.page_fluid(
               color: #f9d474;
             }
 
-            /* ---------- PANELS ---------- */
+            /* ---------- LAYOUT ---------- */
 
             .main-grid {
               display: grid;
@@ -261,8 +265,8 @@ app_ui = ui.page_fluid(
 
             .wheel-wrapper {
               position: relative;
-              width: 320;
-              height: 320;
+              width: 280px;
+              height: 280px;
               margin: 0.3rem auto 0.2rem auto;
               display: flex;
               justify-content: center;
@@ -271,26 +275,28 @@ app_ui = ui.page_fluid(
 
             .wheel-halo {
               position: absolute;
-              width: 360px;
-              height: 360px;
+              width: 340px;
+              height: 340px;
               border-radius: 50%;
               background: radial-gradient(circle at center, rgba(255,203,120,0.25), transparent 60%);
               filter: blur(4px);
             }
 
-            /* Image wheel */
             .wheel {
               position: absolute;
               top: 50%;
               left: 50%;
-              width: 500px;                 /* tweak up/down if you want it bigger/smaller */
-              height: 500px;
+              max-width: 100%;
+              max-height: 100%;
+              width: auto;
+              height: auto;
               transform-origin: 50% 50%;
               transform: translate(-50%, -50%) rotate(0deg);
               transition: transform 4s cubic-bezier(0.22, 0.61, 0.36, 1);
-              border: none;                 /* no extra ring – the PNG *is* the wheel */
-              border-radius: 50%;
               box-shadow: 0 0 32px rgba(0,0,0,0.9);
+              border-radius: 50%;
+              border: none;
+              z-index: 1;
             }
 
             .wheel-pointer,
@@ -548,6 +554,7 @@ app_ui = ui.page_fluid(
         ),
     ),
 
+    # Header bar
     ui.div(
         {"class": "app-header"},
         ui.div(
@@ -564,6 +571,7 @@ app_ui = ui.page_fluid(
         ),
     ),
 
+    # Main layout
     ui.div(
         {"class": "app-shell"},
         ui.div(
@@ -571,6 +579,7 @@ app_ui = ui.page_fluid(
             # LEFT COLUMN
             ui.div(
                 {"class": "left-stack"},
+                # Treasury investment
                 ui.div(
                     {"class": "glass-panel"},
                     ui.div(
@@ -578,7 +587,10 @@ app_ui = ui.page_fluid(
                         ui.div("🪙", class_="panel-glyph"),
                         ui.div(
                             ui.div("TREASURY INVESTMENT", class_="panel-title"),
-                            ui.div("Gold Pieces (gp) to invest", class_="panel-caption"),
+                            ui.div(
+                                "Gold Pieces (gp) to invest",
+                                class_="panel-caption",
+                            ),
                         ),
                     ),
                     ui.div("Gold Pieces (gp) to invest", class_="field-label"),
@@ -594,6 +606,7 @@ app_ui = ui.page_fluid(
                         class_="help-text",
                     ),
                 ),
+                # Narrative flair
                 ui.div(
                     {"class": "glass-panel"},
                     ui.div(
@@ -620,7 +633,7 @@ app_ui = ui.page_fluid(
                 ),
             ),
 
-            # RIGHT COLUMN – WHEEL + EARNINGS
+            # RIGHT COLUMN – wheel + earnings
             ui.div(
                 ui.div(
                     {"class": "glass-panel wheel-panel"},
@@ -639,8 +652,10 @@ app_ui = ui.page_fluid(
                             ui.div({"class": "wheel-pointer-pin"}),
                             ui.input_action_button(
                                 "spin",
-                            ui.HTML("<span class='wheel-center-text'>SPIN<br>FOR GOLD</span>"),
-                            class_="wheel-center-button",
+                                ui.HTML(
+                                    "<span class='wheel-center-text'>SPIN<br>FOR GOLD</span>"
+                                ),
+                                class_="wheel-center-button",
                             ),
                         ),
                         ui.div("Beware the Loss sector!", class_="loss-warning"),
@@ -658,11 +673,15 @@ app_ui = ui.page_fluid(
 
         ui.br(),
 
+        # Ledger
         ui.div(
             {"class": "glass-panel"},
             ui.div("THE TAVERN LEDGER", class_="section-title"),
             ui.output_table("ledger_table"),
-            ui.div(ui.output_text("ledger_message"), class_="ledger-footer-text"),
+            ui.div(
+                ui.output_text("ledger_message"),
+                class_="ledger-footer-text",
+            ),
         ),
     ),
 )
@@ -695,7 +714,7 @@ def server(input, output, session):
             result_pct = MIN_PROFIT_PERCENT + u * (MAX_PROFIT_PERCENT - MIN_PROFIT_PERCENT)
             target_angle = loss_degrees + u * profit_degrees
 
-        # Rotate wheel so target is under pointer (pointer is at 90°)
+        # Rotate wheel so the chosen sector ends up under the pointer at 90°
         extra_spins = 360 * random.randint(4, 7)
         final_rot = rotation() + extra_spins + (90 - target_angle)
         rotation.set(final_rot)
@@ -785,7 +804,7 @@ def server(input, output, session):
         )
         ui.modal_show(modal)
 
-    # Status text
+    # Status line under the wheel
     @render.text
     def status():
         res = last_result()
@@ -806,7 +825,7 @@ def server(input, output, session):
                 f"Gain of {pct:.1f}% — about {net:.1f} gp profit after a {flair_pct}% flair bonus."
             )
 
-    # Latest spin summary
+    # Latest spin summary (top table)
     @render.table
     def latest_summary():
         res = last_result()
@@ -830,7 +849,7 @@ def server(input, output, session):
         }
         return pd.DataFrame([row], columns=cols)
 
-    # Ledger table
+    # Ledger table (all spins)
     @render.table
     def ledger_table():
         rows = ledger()
@@ -859,7 +878,6 @@ def server(input, output, session):
         ]
         return pd.DataFrame(display_rows, columns=cols)
 
-    # Ledger footer
     @render.text
     def ledger_message():
         if not ledger():
@@ -867,6 +885,6 @@ def server(input, output, session):
         return ""
 
 
+# Serve assets/ as the static directory (for Wheel.png)
 assets_dir = Path(__file__).parent / "assets"
 app = App(app_ui, server, static_assets=assets_dir)
-
