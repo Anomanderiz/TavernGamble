@@ -265,8 +265,8 @@ app_ui = ui.page_fluid(
 
             .wheel-wrapper {
               position: relative;
-              width: 280px;
-              height: 280px;
+              width: min(280px, 70vw);
+              aspect-ratio: 1 / 1;
               margin: 0.3rem auto 0.2rem auto;
               display: flex;
               justify-content: center;
@@ -275,8 +275,11 @@ app_ui = ui.page_fluid(
 
             .wheel-halo {
               position: absolute;
-              width: 340px;
-              height: 340px;
+              top: 50%;
+              left: 50%;
+              width: 115%;
+              height: 115%;
+              transform: translate(-50%, -50%);
               border-radius: 50%;
               background: radial-gradient(circle at center, rgba(255,203,120,0.25), transparent 60%);
               filter: blur(4px);
@@ -286,10 +289,11 @@ app_ui = ui.page_fluid(
               position: absolute;
               top: 50%;
               left: 50%;
+              width: 100%;
+              height: 100%;
               max-width: 100%;
               max-height: 100%;
-              width: auto;
-              height: auto;
+              object-fit: contain;
               transform-origin: 50% 50%;
               transform: translate(-50%, -50%) rotate(0deg);
               transition: transform 4s cubic-bezier(0.22, 0.61, 0.36, 1);
