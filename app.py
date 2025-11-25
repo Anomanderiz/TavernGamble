@@ -27,6 +27,16 @@ app_ui = ui.page_fluid(
               min-height: 100vh;
             }
 
+            /* selection highlight: warm gold + white text */
+            ::selection {
+              background: #f97316;
+              color: #ffffff;
+            }
+            ::-moz-selection {
+              background: #f97316;
+              color: #ffffff;
+            }
+
             .app-shell {
               max-width: 1200px;
               margin: 0 auto 2rem auto;
@@ -161,7 +171,7 @@ app_ui = ui.page_fluid(
             .help-text {
               font-family: 'Spectral', serif;
               font-size: 0.75rem;
-              color: #b89c6f;
+              color: #facc85;
               margin-top: 0.25rem;
             }
 
@@ -177,7 +187,7 @@ app_ui = ui.page_fluid(
               box-shadow: 0 0 0 1px #f1b13b;
             }
 
-            /* ---------- RADIO ---------- */
+            /* ---------- NARRATIVE FLAIR RADIO ---------- */
 
             .shiny-input-radiogroup {
               margin-top: 0.5rem;
@@ -195,12 +205,16 @@ app_ui = ui.page_fluid(
               gap: 0.5rem;
               padding: 0.55rem 0.75rem;
               border-radius: 10px;
-              background: #15110f;
-              border: 1px solid #3a2a18;
-              color: #fbe6b2;
+              background: #18100d;
+              border: 1px solid #5f4020;
+              color: #fef3d5;
               font-family: 'Spectral', serif;
               font-size: 0.84rem;
               cursor: pointer;
+            }
+
+            .shiny-input-radiogroup label:hover {
+              border-color: #f59e0b;
             }
 
             .shiny-input-radiogroup input[type="radio"] {
@@ -387,30 +401,28 @@ app_ui = ui.page_fluid(
               text-align: center;
             }
 
-            /* ---------- EARNINGS / LEDGER ---------- */
-
-            .section-title {
-              font-family: 'Cinzel Decorative', serif;
-              text-transform: uppercase;
-              letter-spacing: 0.18em;
-              font-size: 0.86rem;
-              margin-bottom: 0.8rem;
-              color: #f9dfaa;
-            }
+            /* ---------- EARNINGS / LEDGER TABLES ---------- */
 
             table {
               font-size: 0.8rem;
               font-family: 'Spectral', serif;
+              background-color: #18100d;
+              color: #fef3d5;
             }
 
-            th {
+            table thead tr th {
               background-color: #1a130f !important;
               color: #f9deb1 !important;
               border-bottom: 1px solid #46301a !important;
             }
 
-            td {
+            table tbody tr td {
+              background-color: #18100d !important;
               border-color: #3b2816 !important;
+            }
+
+            .table-striped > tbody > tr:nth-of-type(odd) > td {
+              background-color: #201612 !important;
             }
 
             .ledger-footer-text {
@@ -420,6 +432,15 @@ app_ui = ui.page_fluid(
               margin-top: 0.3rem;
               text-align: center;
               font-style: italic;
+            }
+
+            .section-title {
+              font-family: 'Cinzel Decorative', serif;
+              text-transform: uppercase;
+              letter-spacing: 0.18em;
+              font-size: 0.86rem;
+              margin-bottom: 0.8rem;
+              color: #f9dfaa;
             }
 
             /* ---------- MODAL (TENDAY RESULTS) ---------- */
@@ -612,14 +633,15 @@ app_ui = ui.page_fluid(
                             ),
                         ),
                     ),
+                    # updated labels: Passable / Good / Excellent with %
                     ui.input_radio_buttons(
                         "flair",
                         None,
-                        choices={
-                            "Passable (+5%)": "5",
-                            "Good (+10%)": "10",
-                            "Excellent (+15%)": "15",
-                        },
+                        choices=[
+                            ("Passable (+5%)", "5"),
+                            ("Good (+10%)", "10"),
+                            ("Excellent (+15%)", "15"),
+                        ],
                         selected="5",
                     ),
                 ),
@@ -673,8 +695,8 @@ app_ui = ui.page_fluid(
 
 def server(input, output, session):
     rotation = reactive.Value(0.0)
-    last_result = reactive.Value(None)      # dict or None
-    ledger = reactive.Value([])            # list[dict]
+    last_result = reactive.Value(None)
+    ledger = reactive.Value([])
 
     @reactive.effect
     @reactive.event(input.spin)
@@ -682,7 +704,6 @@ def server(input, output, session):
         investment = float(input.investment() or 0.0)
         flair_pct = int(input.flair() or "0")
 
-        # Determine loss vs profit
         is_loss = random.random() < LOSS_CHANCE
         loss_degrees = 360 * LOSS_CHANCE
         profit_degrees = 360 - loss_degrees
@@ -696,12 +717,11 @@ def server(input, output, session):
             result_pct = MIN_PROFIT_PERCENT + u * (MAX_PROFIT_PERCENT - MIN_PROFIT_PERCENT)
             target_angle = loss_degrees + u * profit_degrees
 
-        # Rotate wheel so target is under pointer (pointer at 90°)
         extra_spins = 360 * random.randint(4, 7)
         final_rot = rotation() + extra_spins + (90 - target_angle)
         rotation.set(final_rot)
 
-        # Earnings maths
+        # earnings
         base_profit = investment * (result_pct / 100.0)
         base_outcome = investment + base_profit
         flair_bonus_gp = base_outcome * (flair_pct / 100.0)
@@ -722,7 +742,7 @@ def server(input, output, session):
         last_result.set(state)
         ledger.set([state] + ledger())
 
-        # --- Tenday Results modal ---
+        # modal
         sign = "+" if result_pct >= 0 else ""
         wheel_str = f"{sign}{result_pct:.1f}%"
         flair_str = f"+{flair_pct}%"
@@ -780,7 +800,6 @@ def server(input, output, session):
         )
         ui.modal_show(modal)
 
-    # Wheel disc
     @render.ui
     def wheel_ui():
         return ui.div(
@@ -798,7 +817,6 @@ def server(input, output, session):
             ),
         )
 
-    # Status text
     @render.text
     def status():
         res = last_result()
@@ -819,7 +837,6 @@ def server(input, output, session):
                 f"Gain of {pct:.1f}% — about {net:.1f} gp profit after a {flair_pct}% flair bonus."
             )
 
-    # Latest spin summary (table under 'THE EARNINGS')
     @render.table
     def latest_summary():
         res = last_result()
@@ -830,10 +847,8 @@ def server(input, output, session):
             "Net profit (gp)",
             "Final amount (gp)",
         ]
-
         if res is None:
             return pd.DataFrame(columns=cols)
-
         row = {
             "Investment (gp)": round(res["investment"], 1),
             "Fortune wheel": f"{res['wheel_pct']:.1f}%",
@@ -843,7 +858,6 @@ def server(input, output, session):
         }
         return pd.DataFrame([row], columns=cols)
 
-    # Full ledger table
     @render.table
     def ledger_table():
         rows = ledger()
@@ -855,7 +869,6 @@ def server(input, output, session):
             "Net profit (gp)",
             "Final amount (gp)",
         ]
-
         if not rows:
             return pd.DataFrame(columns=cols)
 
@@ -872,7 +885,6 @@ def server(input, output, session):
         ]
         return pd.DataFrame(display_rows, columns=cols)
 
-    # Ledger footer
     @render.text
     def ledger_message():
         if not ledger():
