@@ -265,7 +265,9 @@ app_ui = ui.page_fluid(
               justify-content: center;
               align-items: center;
               margin: 0.3rem 0 0.2rem 0;
+              overflow: hidden;              /* crop the zoomed wheel */
             }
+
 
             .wheel-halo {
               position: absolute;
