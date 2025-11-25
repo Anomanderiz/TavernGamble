@@ -171,7 +171,7 @@ app_ui = ui.page_fluid(
             .help-text {
               font-family: 'Spectral', serif;
               font-size: 0.75rem;
-              color: #ffffff;   /* bright & legible */
+              color: #ffffff !important;   /* bright & legible */
               margin-top: 0.25rem;
             }
 
@@ -201,7 +201,6 @@ app_ui = ui.page_fluid(
               width: 100%;
               display: flex;
               align-items: center;
-              justify-content: space-between;
               gap: 0.5rem;
               padding: 0.55rem 0.75rem;
               border-radius: 10px;
@@ -211,6 +210,8 @@ app_ui = ui.page_fluid(
               font-family: 'Spectral', serif;
               font-size: 0.84rem;
               cursor: pointer;
+              justify-content: center;      /* centre text + dot as a unit */
+              text-align: center;
             }
 
             .shiny-input-radiogroup label:hover {
