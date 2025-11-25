@@ -637,11 +637,11 @@ app_ui = ui.page_fluid(
                     ui.input_radio_buttons(
                         "flair",
                         None,
-                        choices=[
-                            ("Passable (+5%)", "5"),
-                            ("Good (+10%)", "10"),
-                            ("Excellent (+15%)", "15"),
-                        ],
+                        choices={
+                            "Passable (+5%)": "5",
+                            "Good (+10%)": "10",
+                            "Excellent (+15%)": "15",
+                        },
                         selected="5",
                     ),
                 ),
