@@ -32,7 +32,9 @@ app_ui = ui.page_fluid(
                 Shiny.addCustomMessageHandler('spin_wheel', function(message) {
                   var el = document.getElementById('wheel-disc');
                   if (!el) return;
-                  el.style.transform = 'translate(-50%, -50%) rotate(' + message.angle + 'deg)';
+                  // Keep image centred AND zoomed while rotating
+                  el.style.transform =
+                    'translate(-50%, -50%) rotate(' + message.angle + 'deg) scale(1.35)';
                 });
               }
             });
@@ -271,6 +273,7 @@ app_ui = ui.page_fluid(
               display: flex;
               justify-content: center;
               align-items: center;
+              overflow: visible;
             }
 
             .wheel {
@@ -283,7 +286,8 @@ app_ui = ui.page_fluid(
               max-height: 100%;
               object-fit: contain;
               transform-origin: 50% 50%;
-              transform: translate(-50%, -50%) rotate(0deg);
+              /* Start already zoomed in so the PNG fills the wheel */
+              transform: translate(-50%, -50%) rotate(0deg) scale(1.35);
               transition: transform 4s cubic-bezier(0.22, 0.61, 0.36, 1);
               box-shadow: 0 0 32px rgba(0,0,0,0.9);
               border-radius: 50%;
