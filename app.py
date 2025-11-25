@@ -1,8 +1,7 @@
 from shiny import App, ui, render, reactive
 from datetime import datetime
 import random
-import pandas
-
+import pandas as pd
 
 # --- Game constants ---
 LOSS_CHANCE = 0.10          # 10% chance to suffer a loss
@@ -205,23 +204,6 @@ app_ui = ui.page_fluid(
 
             .shiny-input-radiogroup input[type="radio"] {
               margin-right: 0.45rem;
-            }
-
-            .flair-main {
-              text-transform: uppercase;
-              letter-spacing: 0.14em;
-              font-size: 0.78rem;
-            }
-
-            .flair-sub {
-              font-size: 0.75rem;
-              color: #c3a272;
-            }
-
-            .flair-bonus {
-              font-size: 0.8rem;
-              color: #7fe39d;
-              font-weight: 600;
             }
 
             /* ---------- WHEEL ---------- */
@@ -562,8 +544,8 @@ app_ui = ui.page_fluid(
 
 def server(input, output, session):
     rotation = reactive.Value(0.0)
-    last_result = reactive.Value(None)
-    ledger = reactive.Value([])
+    last_result = reactive.Value(None)      # dict or None
+    ledger = reactive.Value([])            # list[dict]
 
     @reactive.effect
     @reactive.event(input.spin)
@@ -571,6 +553,7 @@ def server(input, output, session):
         investment = float(input.investment() or 0.0)
         flair_pct = int(input.flair() or "0")
 
+        # Determine loss vs profit
         is_loss = random.random() < LOSS_CHANCE
         loss_degrees = 360 * LOSS_CHANCE
         profit_degrees = 360 - loss_degrees
@@ -584,10 +567,12 @@ def server(input, output, session):
             result_pct = MIN_PROFIT_PERCENT + u * (MAX_PROFIT_PERCENT - MIN_PROFIT_PERCENT)
             target_angle = loss_degrees + u * profit_degrees
 
+        # Rotate wheel so target is under pointer (pointer at 90°)
         extra_spins = 360 * random.randint(4, 7)
         final_rot = rotation() + extra_spins + (90 - target_angle)
         rotation.set(final_rot)
 
+        # Earnings maths
         base_final = investment * (1 + result_pct / 100.0)
         final_with_flair = base_final * (1 + flair_pct / 100.0)
         net_profit = final_with_flair - investment
@@ -643,43 +628,63 @@ def server(input, output, session):
                 f"Gain of {pct:.1f}% — about {net:.1f} gp profit after a {flair_pct}% flair bonus."
             )
 
-    # Latest spin summary
+    # Latest spin summary as a pandas DataFrame
     @render.table
     def latest_summary():
         res = last_result()
-        if res is None:
-            return []
-
-        return [
-            {
-                "Investment (gp)": round(res["investment"], 1),
-                "Fortune wheel": f"{res['wheel_pct']:.1f}%",
-                "Flair": f"+{res['flair_pct']}%",
-                "Net profit (gp)": round(res["net_profit"], 1),
-                "Final amount (gp)": round(res["final_amount"], 1),
-            }
+        cols = [
+            "Investment (gp)",
+            "Fortune wheel",
+            "Flair",
+            "Net profit (gp)",
+            "Final amount (gp)",
         ]
 
-    # Ledger table
+        if res is None:
+            # Empty DataFrame with expected columns
+            return pd.DataFrame(columns=cols)
+
+        row = {
+            "Investment (gp)": round(res["investment"], 1),
+            "Fortune wheel": f"{res['wheel_pct']:.1f}%",
+            "Flair": f"+{res['flair_pct']}%",
+            "Net profit (gp)": round(res["net_profit"], 1),
+            "Final amount (gp)": round(res["final_amount"], 1),
+        }
+        return pd.DataFrame([row], columns=cols)
+
+    # Full ledger table as a pandas DataFrame
     @render.table
     def ledger_table():
         rows = ledger()
-        if not rows:
-            return []
-
-        return [
-            {
-                "Date": r["date"],
-                "Investment (gp)": round(r["investment"], 1),
-                "Fortune wheel": f"{r['wheel_pct']:.1f}%",
-                "Flair": f"+{r['flair_pct']}%",
-                "Net profit (gp)": round(r["net_profit"], 1),
-                "Final amount (gp)": round(r["final_amount"], 1),
-            }
-            for r in rows
+        cols = [
+            "Date",
+            "Investment (gp)",
+            "Fortune wheel",
+            "Flair",
+            "Net profit (gp)",
+            "Final amount (gp)",
         ]
 
-    # Ledger footer text
+        if not rows:
+            return pd.DataFrame(columns=cols)
+
+        display_rows = []
+        for r in rows:
+            display_rows.append(
+                {
+                    "Date": r["date"],
+                    "Investment (gp)": round(r["investment"], 1),
+                    "Fortune wheel": f"{r['wheel_pct']:.1f}%",
+                    "Flair": f"+{r['flair_pct']}%",
+                    "Net profit (gp)": round(r["net_profit"], 1),
+                    "Final amount (gp)": round(r["final_amount"], 1),
+                }
+            )
+
+        return pd.DataFrame(display_rows, columns=cols)
+
+    # Ledger footer
     @render.text
     def ledger_message():
         if not ledger():
