@@ -261,13 +261,13 @@ app_ui = ui.page_fluid(
 
             .wheel-wrapper {
               position: relative;
+              width: 320px;
+              height: 320px;
+              margin: 0.3rem auto 0.2rem auto;
               display: flex;
               justify-content: center;
               align-items: center;
-              margin: 0.3rem 0 0.2rem 0;
-              overflow: hidden;              /* crop the zoomed wheel */
             }
-
 
             .wheel-halo {
               position: absolute;
@@ -280,17 +280,18 @@ app_ui = ui.page_fluid(
 
             /* Image wheel */
             .wheel {
-             width: 260px;
-              height: 260px;
-              border-radius: 50%;
-              border: 6px solid #f7c956;
-              box-shadow: 0 0 32px rgba(0,0,0,0.9);
-              transition: transform 4s cubic-bezier(0.22, 0.61, 0.36, 1);
+              position: absolute;
+              top: 50%;
+              left: 50%;
+              width: 280px;                 /* tweak up/down if you want it bigger/smaller */
+              height: 280px;
               transform-origin: 50% 50%;
-              transform: scale(1.6) rotate(0deg);  /* zoom even before first spin */
-              display: block;
+              transform: translate(-50%, -50%) rotate(0deg);
+              transition: transform 4s cubic-bezier(0.22, 0.61, 0.36, 1);
+              border: none;                 /* no extra ring – the PNG *is* the wheel */
+              border-radius: 50%;
+              box-shadow: 0 0 32px rgba(0,0,0,0.9);
             }
-
 
             .wheel-pointer,
             .wheel-pointer-pin {
@@ -631,17 +632,15 @@ app_ui = ui.page_fluid(
                             ui.div({"class": "wheel-halo"}),
                             ui.tags.img(
                                 id="wheel-disc",
-                                src="Wheel.png",
+                                src="Wheel.png",  # served from static_assets
                                 class_="wheel",
                             ),
                             ui.div({"class": "wheel-pointer"}),
                             ui.div({"class": "wheel-pointer-pin"}),
                             ui.input_action_button(
                                 "spin",
-                                ui.HTML(
-                                    "<span class='wheel-center-text'>SPIN<br>FOR GOLD</span>"
-                                ),
-                                class_="wheel-center-button",
+                            ui.HTML("<span class='wheel-center-text'>SPIN<br>FOR GOLD</span>"),
+                            class_="wheel-center-button",
                             ),
                         ),
                         ui.div("Beware the Loss sector!", class_="loss-warning"),
