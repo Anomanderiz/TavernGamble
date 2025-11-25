@@ -261,8 +261,8 @@ app_ui = ui.page_fluid(
 
             .wheel-wrapper {
               position: relative;
-              width: 320px;
-              height: 320px;
+              width: 500;
+              height: 600;
               margin: 0.3rem auto 0.2rem auto;
               display: flex;
               justify-content: center;
