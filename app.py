@@ -28,7 +28,7 @@ app_ui = ui.page_fluid(
                 Shiny.addCustomMessageHandler('spin_wheel', function(message) {
                   var el = document.getElementById('wheel-disc');
                   if (!el) return;
-                  el.style.transform = 'scale(1.6) rotate(' + message.angle + 'deg)';
+                  el.style.transform = 'scale(2.5) rotate(' + message.angle + 'deg)';
                 });
               }
             });
