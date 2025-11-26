@@ -6,6 +6,7 @@ import pandas as pd
 import os
 import json
 import inspect
+import requests
 
 # Optional import – if missing, app still runs but without Sheets sync
 try:
@@ -31,6 +32,19 @@ GOOGLE_SHEET_TAB = os.getenv("GT_TAVERN_SHEET_TAB", "Ledger")
 
 # Env var containing the FULL service account JSON (as one string)
 SERVICE_ACCOUNT_JSON_ENV = "GT_TAVERN_SERVICE_ACCOUNT_JSON"
+
+# Env var containing the FULL service account JSON (as one string)
+SERVICE_ACCOUNT_JSON_ENV = "GT_TAVERN_SERVICE_ACCOUNT_JSON"
+
+# Discord webhook URL (optional)
+DISCORD_WEBHOOK_URL = os.getenv("GT_TAVERN_DISCORD_WEBHOOK_URL", "")
+
+# Canonical column order we expect in Sheets
+LEDGER_HEADERS = [
+    "date",
+    "investment",
+    ...
+]
 
 # Canonical column order we expect in Sheets
 LEDGER_HEADERS = [
@@ -197,8 +211,46 @@ def append_state_to_sheets(state: dict):
         ]
         ws.append_row(row, value_input_option="RAW")
         print("[Sheets] Appended 1 ledger entry to Sheets.")
+
+        # New: notify Discord only after a successful append
+        notify_discord(state)
     except Exception as e:
         print(f"[Sheets] Failed to append row: {e}")
+
+
+def notify_discord(state: dict):
+    """
+    Send a Discord webhook notice for the latest tavern result.
+    Does nothing if DISCORD_WEBHOOK_URL is not set.
+    """
+    url = DISCORD_WEBHOOK_URL
+    if not url:
+        return
+
+    try:
+        investment = float(state.get("investment", 0) or 0)
+        net_profit = float(state.get("net_profit", 0) or 0)
+        final_amount = float(state.get("final_amount", 0) or 0)
+        wheel_pct = float(state.get("wheel_pct", 0) or 0)
+
+        # Profit % including flair, based on actual net profit vs investment
+        if investment > 0:
+            profit_pct_total = (net_profit / investment) * 100.0
+        else:
+            # Fallback: just use the wheel percentage if no gold was invested
+            profit_pct_total = wheel_pct
+
+        message = (
+            "🏠 I have examined your tavern's financials for the tenday:\n"
+            f"Profit: {profit_pct_total:.1f}%\n"
+            f"Net Income: {final_amount:.0f} gp"
+        )
+
+        payload = {"content": message}
+        requests.post(url, json=payload, timeout=5)
+        print("[Discord] Sent tavern summary webhook.")
+    except Exception as e:
+        print(f"[Discord] Failed to send webhook: {e}")
 
 
 # ========================= UI =========================
