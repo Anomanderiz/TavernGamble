@@ -3,11 +3,147 @@ from datetime import datetime
 from pathlib import Path
 import random
 import pandas as pd
+import os
 
-LOSS_CHANCE = 0.10
-LOSS_PERCENTAGE = -10
-MIN_PROFIT_PERCENT = 20
-MAX_PROFIT_PERCENT = 200
+# Try to import gspread; degrade gracefully if not installed
+try:
+    import gspread  # type: ignore
+except ImportError:
+    gspread = None
+
+# --- Game constants ---
+LOSS_CHANCE = 0.10          # 10% chance to suffer a loss
+LOSS_PERCENTAGE = -10       # -10% result when loss happens
+MIN_PROFIT_PERCENT = 20     # 20% minimum profit
+MAX_PROFIT_PERCENT = 200    # 200% maximum profit
+
+# --- Google Sheets configuration ---
+# Path to service account credentials JSON
+GOOGLE_CREDS_FILE = os.getenv(
+    "GOOGLE_APPLICATION_CREDENTIALS",
+    str(Path(__file__).parent / "service_account.json"),
+)
+
+# Spreadsheet ID (the long ID from the Google Sheets URL)
+# Prefer env var GT_TAVERN_SHEET_ID; otherwise replace the placeholder string.
+GOOGLE_SHEET_ID = os.getenv("GT_TAVERN_SHEET_ID", "PUT_YOUR_SHEET_ID_HERE")
+
+# Worksheet/tab name inside the spreadsheet
+GOOGLE_SHEET_TAB = os.getenv("GT_TAVERN_SHEET_TAB", "Ledger")
+
+LEDGER_HEADERS = [
+    "date",
+    "investment",
+    "wheel_pct",
+    "flair_pct",
+    "base_outcome",
+    "flair_bonus_gp",
+    "net_profit",
+    "final_amount",
+]
+
+
+def get_worksheet():
+    """
+    Return a gspread worksheet object for the configured spreadsheet/tab,
+    or None if Sheets is not available or misconfigured.
+    """
+    if gspread is None:
+        print("[Sheets] gspread not installed; skipping Google Sheets sync.")
+        return None
+
+    if not GOOGLE_SHEET_ID or GOOGLE_SHEET_ID == "PUT_YOUR_SHEET_ID_HERE":
+        print("[Sheets] GOOGLE_SHEET_ID not set; skipping Google Sheets sync.")
+        return None
+
+    try:
+        gc = gspread.service_account(filename=GOOGLE_CREDS_FILE)
+        sh = gc.open_by_key(GOOGLE_SHEET_ID)
+        ws = sh.worksheet(GOOGLE_SHEET_TAB)
+        return ws
+    except Exception as e:
+        print(f"[Sheets] Failed to open worksheet: {e}")
+        return None
+
+
+def load_ledger_from_sheets():
+    """
+    Load ledger rows from Google Sheets and return a list of state dicts.
+    If anything fails, return an empty list.
+    """
+    ws = get_worksheet()
+    if ws is None:
+        return []
+
+    try:
+        records = ws.get_all_records()  # list of dicts keyed by header row
+    except Exception as e:
+        print(f"[Sheets] Failed to load ledger: {e}")
+        return []
+
+    # records come oldest -> newest (row order). We want newest first in our in-memory ledger.
+    states = []
+    for r in records:
+        try:
+            states.append(
+                {
+                    "date": r.get("date", "") or r.get("Date", ""),
+                    "investment": float(r.get("investment", r.get("Investment (gp)", 0)) or 0),
+                    "wheel_pct": float(r.get("wheel_pct", r.get("wheel_pct (%)", 0)) or 0),
+                    "flair_pct": float(r.get("flair_pct", r.get("flair", 0)) or 0),
+                    "base_outcome": float(r.get("base_outcome", 0) or 0),
+                    "flair_bonus_gp": float(r.get("flair_bonus_gp", 0) or 0),
+                    "net_profit": float(r.get("net_profit", r.get("Net profit (gp)", 0)) or 0),
+                    "final_amount": float(r.get("final_amount", r.get("Final amount (gp)", 0)) or 0),
+                }
+            )
+        except Exception as e:
+            print(f"[Sheets] Skipping malformed row {r}: {e}")
+
+    # Reverse so newest is first (index 0), matching how the app uses ledger()
+    states.reverse()
+    print(f"[Sheets] Loaded {len(states)} ledger entries from Google Sheets.")
+    return states
+
+
+def save_ledger_to_sheets(ledger_list):
+    """
+    Persist the entire ledger list to Google Sheets, overwriting previous data.
+    ledger_list is expected to be [ newest, ..., oldest ].
+    """
+    ws = get_worksheet()
+    if ws is None:
+        return
+
+    try:
+        # We want oldest at the top (first data row) in the sheet → reverse the list.
+        rows = []
+        for state in reversed(ledger_list):
+            rows.append(
+                [
+                    state["date"],
+                    state["investment"],
+                    state["wheel_pct"],
+                    state["flair_pct"],
+                    state["base_outcome"],
+                    state["flair_bonus_gp"],
+                    state["net_profit"],
+                    state["final_amount"],
+                ]
+            )
+
+        ws.clear()
+        if rows:
+            ws.update("A1", [LEDGER_HEADERS] + rows)
+        else:
+            ws.update("A1", [LEDGER_HEADERS])
+
+        print(f"[Sheets] Saved {len(rows)} ledger entries to Google Sheets.")
+    except Exception as e:
+        print(f"[Sheets] Failed to save ledger: {e}")
+
+
+# ========================= UI =========================
 
 app_ui = ui.page_fluid(
     ui.tags.head(
@@ -20,6 +156,7 @@ app_ui = ui.page_fluid(
                 "family=Spectral:wght@400;600&display=swap"
             ),
         ),
+        # JS handler: rotate ONLY the wheel image on server message
         ui.tags.script(
             """
             document.addEventListener('DOMContentLoaded', function() {
@@ -285,17 +422,18 @@ app_ui = ui.page_fluid(
               color: #f9dfaa;
             }
 
-            /* glassy wheel container */
             .wheel-shell {
-              background: transparent;
-              border: none;
-              padding: 0;
-              backdrop-filter: none;
+              background: rgba(15, 11, 8, 0.40);
+              border-radius: 14px;
+              padding: 1.0rem 1.0rem 0.9rem 1.0rem;
+              border: 1px solid rgba(107, 74, 32, 0.95);
+              backdrop-filter: blur(22px) saturate(140%);
             }
+
             .wheel-wrapper {
               position: relative;
-              width: 500px;
-              height: 500px;
+              width: 280px;
+              height: 280px;
               margin: 0.3rem auto 0.2rem auto;
             }
 
@@ -303,8 +441,8 @@ app_ui = ui.page_fluid(
               position: absolute;
               top: 50%;
               left: 50%;
-              width: 500px;
-              height: 500px;
+              width: 280px;
+              height: 280px;
               transform: translate(-50%, -50%);
               border-radius: 50%;
               background: radial-gradient(circle at center, #2b231e 0, #15100d 68%);
@@ -316,8 +454,8 @@ app_ui = ui.page_fluid(
               position: absolute;
               top: 50%;
               left: 50%;
-              width: 250%;
-              height: 250%;
+              width: 118%;
+              height: 118%;
               max-width: none;
               max-height: none;
               object-fit: contain;
@@ -413,7 +551,7 @@ app_ui = ui.page_fluid(
               text-align: center;
             }
 
-            /* ---------- TABLES (glass look) ---------- */
+            /* ---------- TABLES (glass) ---------- */
 
             table {
               font-size: 0.8rem;
@@ -716,10 +854,18 @@ app_ui = ui.page_fluid(
     ),
 )
 
+
+# ========================= SERVER =========================
+
 def server(input, output, session):
     rotation = reactive.Value(0.0)
     last_result = reactive.Value(None)
     ledger = reactive.Value([])
+
+    # --- Load existing ledger from Google Sheets on session start ---
+    initial_ledger = load_ledger_from_sheets()
+    if initial_ledger:
+        ledger.set(initial_ledger)
 
     @reactive.effect
     @reactive.event(input.spin)
@@ -727,6 +873,7 @@ def server(input, output, session):
         investment = float(input.investment() or 0.0)
         flair_pct = int(input.flair() or "0")
 
+        # Determine loss vs profit
         is_loss = random.random() < LOSS_CHANCE
         loss_degrees = 360 * LOSS_CHANCE
         profit_degrees = 360 - loss_degrees
@@ -740,11 +887,13 @@ def server(input, output, session):
             result_pct = MIN_PROFIT_PERCENT + u * (MAX_PROFIT_PERCENT - MIN_PROFIT_PERCENT)
             target_angle = loss_degrees + u * profit_degrees
 
+        # Rotate wheel so the chosen sector ends up under the pointer at 90°
         extra_spins = 360 * random.randint(4, 7)
         final_rot = rotation() + extra_spins + (90 - target_angle)
         rotation.set(final_rot)
         session.send_custom_message("spin_wheel", {"angle": final_rot})
 
+        # Earnings maths
         base_profit = investment * (result_pct / 100.0)
         base_outcome = investment + base_profit
         flair_bonus_gp = base_outcome * (flair_pct / 100.0)
@@ -762,9 +911,14 @@ def server(input, output, session):
             "final_amount": final_with_flair,
         }
 
-        last_result.set(state)
-        ledger.set([state] + ledger())
+        # Update in-memory ledger (newest first)
+        current = ledger()
+        ledger.set([state] + current)
 
+        # Persist to Google Sheets
+        save_ledger_to_sheets(ledger())
+
+        # --- Tenday Results modal ---
         sign = "+" if result_pct >= 0 else ""
         wheel_str = f"{sign}{result_pct:.1f}%"
         flair_str = f"+{flair_pct}%"
@@ -830,6 +984,10 @@ def server(input, output, session):
     def status():
         res = last_result()
         if res is None:
+            # If we have a ledger from sheet, report that instead of "empty"
+            rows = ledger()
+            if rows:
+                return f"{len(rows)} historical entries loaded from the ledger. Spin again to tempt fate."
             return "The ledger is empty. Spin the wheel to record business."
 
         pct = res["wheel_pct"]
@@ -898,6 +1056,7 @@ def server(input, output, session):
         if not ledger():
             return "The ledger is empty. Spin the wheel to record business."
         return ""
+
 
 assets_dir = Path(__file__).parent / "assets"
 app = App(app_ui, server, static_assets=assets_dir)
