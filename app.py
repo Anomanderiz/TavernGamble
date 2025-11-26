@@ -4,12 +4,14 @@ from pathlib import Path
 import random
 import pandas as pd
 import os
+import json
 
-# Try to import gspread; degrade gracefully if not installed
+# Optional import – if missing, app still runs but without Sheets sync
 try:
     import gspread  # type: ignore
 except ImportError:
     gspread = None
+
 
 # --- Game constants ---
 LOSS_CHANCE = 0.10          # 10% chance to suffer a loss
@@ -17,20 +19,19 @@ LOSS_PERCENTAGE = -10       # -10% result when loss happens
 MIN_PROFIT_PERCENT = 20     # 20% minimum profit
 MAX_PROFIT_PERCENT = 200    # 200% maximum profit
 
-# --- Google Sheets configuration ---
-# Path to service account credentials JSON
-GOOGLE_CREDS_FILE = os.getenv(
-    "GOOGLE_APPLICATION_CREDENTIALS",
-    str(Path(__file__).parent / "service_account.json"),
-)
+
+# --- Google Sheets configuration (all via env vars) ---
 
 # Spreadsheet ID (the long ID from the Google Sheets URL)
-# Prefer env var GT_TAVERN_SHEET_ID; otherwise replace the placeholder string.
 GOOGLE_SHEET_ID = os.getenv("GT_TAVERN_SHEET_ID", "PUT_YOUR_SHEET_ID_HERE")
 
 # Worksheet/tab name inside the spreadsheet
 GOOGLE_SHEET_TAB = os.getenv("GT_TAVERN_SHEET_TAB", "Ledger")
 
+# Env var containing the FULL service account JSON (as one string)
+SERVICE_ACCOUNT_JSON_ENV = "GT_TAVERN_SERVICE_ACCOUNT_JSON"
+
+# Canonical column order we expect in Sheets
 LEDGER_HEADERS = [
     "date",
     "investment",
@@ -43,21 +44,52 @@ LEDGER_HEADERS = [
 ]
 
 
+def _build_gspread_client(info: dict):
+    """
+    Build a gspread client from a service account info dict.
+    Tries service_account_from_dict first; falls back to google-auth.
+    """
+    # Prefer the helper if available (gspread >= 5)
+    if hasattr(gspread, "service_account_from_dict"):
+        return gspread.service_account_from_dict(info)
+
+    # Fallback: manually build credentials and authorise
+    from google.oauth2.service_account import Credentials  # type: ignore
+
+    scopes = ["https://www.googleapis.com/auth/spreadsheets"]
+    creds = Credentials.from_service_account_info(info, scopes=scopes)
+    return gspread.authorize(creds)
+
+
 def get_worksheet():
     """
     Return a gspread worksheet object for the configured spreadsheet/tab,
     or None if Sheets is not available or misconfigured.
     """
     if gspread is None:
-        print("[Sheets] gspread not installed; skipping Google Sheets sync.")
+        print("[Sheets] gspread not installed; skipping Sheets sync.")
         return None
 
     if not GOOGLE_SHEET_ID or GOOGLE_SHEET_ID == "PUT_YOUR_SHEET_ID_HERE":
-        print("[Sheets] GOOGLE_SHEET_ID not set; skipping Google Sheets sync.")
+        print("[Sheets] GT_TAVERN_SHEET_ID not set; skipping Sheets sync.")
+        return None
+
+    json_str = os.getenv(SERVICE_ACCOUNT_JSON_ENV)
+    if not json_str:
+        print(
+            f"[Sheets] Service account JSON not found in env "
+            f"{SERVICE_ACCOUNT_JSON_ENV}; skipping Sheets sync."
+        )
         return None
 
     try:
-        gc = gspread.service_account(filename=GOOGLE_CREDS_FILE)
+        info = json.loads(json_str)
+    except Exception as e:
+        print(f"[Sheets] Failed to parse service account JSON: {e}")
+        return None
+
+    try:
+        gc = _build_gspread_client(info)
         sh = gc.open_by_key(GOOGLE_SHEET_ID)
         ws = sh.worksheet(GOOGLE_SHEET_TAB)
         return ws
@@ -66,81 +98,101 @@ def get_worksheet():
         return None
 
 
+def ensure_header_row(ws):
+    """
+    Ensure the first row of the worksheet contains LEDGER_HEADERS.
+    If the row is entirely empty, write the headers. Otherwise leave it alone.
+    """
+    try:
+        existing = ws.row_values(1)
+    except Exception as e:
+        print(f"[Sheets] Failed reading header row: {e}")
+        existing = []
+
+    # If row 1 is completely empty (no non-whitespace cells), set our headers
+    if not any((cell or "").strip() for cell in existing):
+        try:
+            ws.update("A1", [LEDGER_HEADERS])
+            print("[Sheets] Wrote header row to ledger sheet.")
+        except Exception as e:
+            print(f"[Sheets] Failed writing header row: {e}")
+
+
 def load_ledger_from_sheets():
     """
     Load ledger rows from Google Sheets and return a list of state dicts.
-    If anything fails, return an empty list.
+    Does NOT write anything to the sheet – purely a read.
     """
     ws = get_worksheet()
     if ws is None:
         return []
 
     try:
+        ensure_header_row(ws)
         records = ws.get_all_records()  # list of dicts keyed by header row
     except Exception as e:
         print(f"[Sheets] Failed to load ledger: {e}")
         return []
 
-    # records come oldest -> newest (row order). We want newest first in our in-memory ledger.
     states = []
     for r in records:
         try:
             states.append(
                 {
                     "date": r.get("date", "") or r.get("Date", ""),
-                    "investment": float(r.get("investment", r.get("Investment (gp)", 0)) or 0),
-                    "wheel_pct": float(r.get("wheel_pct", r.get("wheel_pct (%)", 0)) or 0),
-                    "flair_pct": float(r.get("flair_pct", r.get("flair", 0)) or 0),
+                    "investment": float(
+                        r.get("investment", r.get("Investment (gp)", 0)) or 0
+                    ),
+                    "wheel_pct": float(
+                        r.get("wheel_pct", r.get("Fortune wheel", 0)) or 0
+                    ),
+                    "flair_pct": float(
+                        r.get("flair_pct", r.get("Flair", 0)) or 0
+                    ),
                     "base_outcome": float(r.get("base_outcome", 0) or 0),
                     "flair_bonus_gp": float(r.get("flair_bonus_gp", 0) or 0),
-                    "net_profit": float(r.get("net_profit", r.get("Net profit (gp)", 0)) or 0),
-                    "final_amount": float(r.get("final_amount", r.get("Final amount (gp)", 0)) or 0),
+                    "net_profit": float(
+                        r.get("net_profit", r.get("Net profit (gp)", 0)) or 0
+                    ),
+                    "final_amount": float(
+                        r.get("final_amount", r.get("Final amount (gp)", 0)) or 0
+                    ),
                 }
             )
         except Exception as e:
             print(f"[Sheets] Skipping malformed row {r}: {e}")
 
-    # Reverse so newest is first (index 0), matching how the app uses ledger()
+    # Sheet will naturally be oldest → newest; we want newest first in memory
     states.reverse()
-    print(f"[Sheets] Loaded {len(states)} ledger entries from Google Sheets.")
+    print(f"[Sheets] Loaded {len(states)} ledger entries from Sheets.")
     return states
 
 
-def save_ledger_to_sheets(ledger_list):
+def append_state_to_sheets(state: dict):
     """
-    Persist the entire ledger list to Google Sheets, overwriting previous data.
-    ledger_list is expected to be [ newest, ..., oldest ].
+    Append a single new state row to the ledger sheet.
+    Does NOT clear or overwrite existing data – pure append.
     """
     ws = get_worksheet()
     if ws is None:
         return
 
     try:
-        # We want oldest at the top (first data row) in the sheet → reverse the list.
-        rows = []
-        for state in reversed(ledger_list):
-            rows.append(
-                [
-                    state["date"],
-                    state["investment"],
-                    state["wheel_pct"],
-                    state["flair_pct"],
-                    state["base_outcome"],
-                    state["flair_bonus_gp"],
-                    state["net_profit"],
-                    state["final_amount"],
-                ]
-            )
-
-        ws.clear()
-        if rows:
-            ws.update("A1", [LEDGER_HEADERS] + rows)
-        else:
-            ws.update("A1", [LEDGER_HEADERS])
-
-        print(f"[Sheets] Saved {len(rows)} ledger entries to Google Sheets.")
+        ensure_header_row(ws)
+        row = [
+            state["date"],
+            state["investment"],
+            state["wheel_pct"],
+            state["flair_pct"],
+            state["base_outcome"],
+            state["flair_bonus_gp"],
+            state["net_profit"],
+            state["final_amount"],
+        ]
+        ws.append_row(row, value_input_option="RAW")
+        print("[Sheets] Appended 1 ledger entry to Sheets.")
     except Exception as e:
-        print(f"[Sheets] Failed to save ledger: {e}")
+        print(f"[Sheets] Failed to append row: {e}")
 
 
 # ========================= UI =========================
@@ -914,9 +966,10 @@ def server(input, output, session):
         # Update in-memory ledger (newest first)
         current = ledger()
         ledger.set([state] + current)
+        last_result.set(state)
 
-        # Persist to Google Sheets
-        save_ledger_to_sheets(ledger())
+        # Append to Google Sheets (no overwrites)
+        append_state_to_sheets(state)
 
         # --- Tenday Results modal ---
         sign = "+" if result_pct >= 0 else ""
@@ -984,10 +1037,12 @@ def server(input, output, session):
     def status():
         res = last_result()
         if res is None:
-            # If we have a ledger from sheet, report that instead of "empty"
             rows = ledger()
             if rows:
-                return f"{len(rows)} historical entries loaded from the ledger. Spin again to tempt fate."
+                return (
+                    f"{len(rows)} historical entries loaded from the ledger. "
+                    "Spin again to tempt fate."
+                )
             return "The ledger is empty. Spin the wheel to record business."
 
         pct = res["wheel_pct"]
