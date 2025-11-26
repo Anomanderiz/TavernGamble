@@ -470,11 +470,10 @@ app_ui = ui.page_fluid(
             }
 
             .wheel-shell {
-              background: rgba(15, 11, 8, 0.40);
-              border-radius: 14px;
-              padding: 1.0rem 1.0rem 0.9rem 1.0rem;
-              border: 1px solid rgba(107, 74, 32, 0.95);
-              backdrop-filter: blur(22px) saturate(140%);
+              background: transparent;
+              border: none;
+              padding: 0;
+              backdrop-filter: none;
             }
 
             .wheel-wrapper {
