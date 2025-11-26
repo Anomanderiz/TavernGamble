@@ -267,8 +267,8 @@ app_ui = ui.page_fluid(
 
             .wheel-wrapper {
               position: relative;
-              width: 320px;
-              height: 320px;
+              width: 500px;
+              height: 500px;
               margin: 0.3rem auto 0.2rem auto;
             }
 
@@ -277,8 +277,8 @@ app_ui = ui.page_fluid(
               position: absolute;
               top: 50%;
               left: 50%;
-              width: 320px;
-              height: 320px;
+              width: 500px;
+              height: 500px;
               transform: translate(-50%, -50%);
               border-radius: 50%;
               background: radial-gradient(circle at center, #2b231e 0, #15100d 68%);
@@ -323,7 +323,7 @@ app_ui = ui.page_fluid(
 
             .wheel-pointer-pin {
               position: absolute;
-              top: 25px;
+              top: 35px;
               left: 50%;
               transform: translateX(-50%);
               width: 11px;
