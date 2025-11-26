@@ -17,7 +17,7 @@ except ImportError:
 
 # --- Game constants ---
 LOSS_CHANCE = 0.10          # 10% chance to suffer a loss
-LOSS_PERCENTAGE = -10       # -10% result when loss happens
+LOSS_PERCENTAGE = -50       # -50% result when loss happens
 MIN_PROFIT_PERCENT = 20     # 20% minimum profit
 MAX_PROFIT_PERCENT = 200    # 200% maximum profit
 
