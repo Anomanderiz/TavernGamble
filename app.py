@@ -479,8 +479,8 @@ app_ui = ui.page_fluid(
 
             .wheel-wrapper {
               position: relative;
-              width: 280px;
-              height: 280px;
+              width: 600px;
+              height: 600px;
               margin: 0.3rem auto 0.2rem auto;
             }
 
@@ -488,8 +488,8 @@ app_ui = ui.page_fluid(
               position: absolute;
               top: 50%;
               left: 50%;
-              width: 280px;
-              height: 280px;
+              width: 600px;
+              height: 600px;
               transform: translate(-50%, -50%);
               border-radius: 50%;
               background: radial-gradient(circle at center, #2b231e 0, #15100d 68%);
