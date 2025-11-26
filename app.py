@@ -4,14 +4,10 @@ from pathlib import Path
 import random
 import pandas as pd
 
-# --- Game constants ---
-LOSS_CHANCE = 0.10          # 10% chance to suffer a loss
-LOSS_PERCENTAGE = -10       # -10% result when loss happens
-MIN_PROFIT_PERCENT = 20     # 20% minimum profit
-MAX_PROFIT_PERCENT = 200    # 200% maximum profit
-
-
-# ========================= UI =========================
+LOSS_CHANCE = 0.10
+LOSS_PERCENTAGE = -10
+MIN_PROFIT_PERCENT = 20
+MAX_PROFIT_PERCENT = 200
 
 app_ui = ui.page_fluid(
     ui.tags.head(
@@ -24,7 +20,6 @@ app_ui = ui.page_fluid(
                 "family=Spectral:wght@400;600&display=swap"
             ),
         ),
-        # JS handler: rotate ONLY the wheel image on server message
         ui.tags.script(
             """
             document.addEventListener('DOMContentLoaded', function() {
@@ -171,7 +166,7 @@ app_ui = ui.page_fluid(
             }
 
             .glass-panel {
-              background: rgba(17, 13, 10, 0.58);
+              background: rgba(17, 13, 10, 0.50);
               border-radius: 12px;
               border: 1px solid rgba(107, 74, 32, 0.9);
               box-shadow: 0 18px 40px rgba(0,0,0,0.9);
@@ -290,28 +285,28 @@ app_ui = ui.page_fluid(
               color: #f9dfaa;
             }
 
+            /* glassy wheel container */
             .wheel-shell {
-              background: rgba(15, 11, 8, 0.70);
+              background: rgba(15, 11, 8, 0.40);
               border-radius: 14px;
               padding: 1.0rem 1.0rem 0.9rem 1.0rem;
-              border: 1px solid #6b4a20;
-              backdrop-filter: blur(18px) saturate(130%);
+              border: 1px solid rgba(107, 74, 32, 0.95);
+              backdrop-filter: blur(22px) saturate(140%);
             }
 
             .wheel-wrapper {
               position: relative;
-              width: 500px;
-              height: 500px;
+              width: 280px;
+              height: 280px;
               margin: 0.3rem auto 0.2rem auto;
             }
 
-            /* Halo disc (fixed size, independent of image scale) */
             .wheel-disc {
               position: absolute;
               top: 50%;
               left: 50%;
-              width: 500px;
-              height: 500px;
+              width: 280px;
+              height: 280px;
               transform: translate(-50%, -50%);
               border-radius: 50%;
               background: radial-gradient(circle at center, #2b231e 0, #15100d 68%);
@@ -323,8 +318,8 @@ app_ui = ui.page_fluid(
               position: absolute;
               top: 50%;
               left: 50%;
-              width: 250%;
-              height: 250%;
+              width: 118%;
+              height: 118%;
               max-width: none;
               max-height: none;
               object-fit: contain;
@@ -420,29 +415,30 @@ app_ui = ui.page_fluid(
               text-align: center;
             }
 
-            /* ---------- TABLES ---------- */
+            /* ---------- TABLES (glass look) ---------- */
 
             table {
               font-size: 0.8rem;
               font-family: 'Spectral', serif;
-              background-color: rgba(24, 16, 13, 0.95);
+              background-color: rgba(10, 7, 5, 0.35);
               color: #ffffff;
+              backdrop-filter: blur(14px) saturate(130%);
             }
 
             table thead tr th {
-              background-color: rgba(26, 19, 15, 0.98) !important;
+              background-color: rgba(26, 19, 15, 0.55) !important;
               color: #f9deb1 !important;
-              border-bottom: 1px solid #46301a !important;
+              border-bottom: 1px solid rgba(70, 48, 26, 0.9) !important;
             }
 
             table tbody tr td {
-              background-color: rgba(24, 16, 13, 0.95) !important;
-              border-color: #3b2816 !important;
+              background-color: rgba(12, 8, 6, 0.45) !important;
+              border-color: rgba(59, 40, 22, 0.9) !important;
               color: #ffffff !important;
             }
 
             .table-striped > tbody > tr:nth-of-type(odd) > td {
-              background-color: rgba(32, 22, 18, 0.98) !important;
+              background-color: rgba(18, 12, 9, 0.55) !important;
             }
 
             .ledger-footer-text {
@@ -594,7 +590,7 @@ app_ui = ui.page_fluid(
         ),
     ),
 
-    # --- VIDEO BACKGROUND LAYERS ---
+    # Background video & overlay
     ui.div(
         {"class": "bg-video-container"},
         ui.tags.video(
@@ -630,10 +626,8 @@ app_ui = ui.page_fluid(
         {"class": "app-shell"},
         ui.div(
             {"class": "main-grid"},
-            # LEFT COLUMN
             ui.div(
                 {"class": "left-stack"},
-                # Treasury investment
                 ui.div(
                     {"class": "glass-panel"},
                     ui.div(
@@ -641,26 +635,16 @@ app_ui = ui.page_fluid(
                         ui.div("🪙", class_="panel-glyph"),
                         ui.div(
                             ui.div("TREASURY INVESTMENT", class_="panel-title"),
-                            ui.div(
-                                "Gold Pieces (gp) to invest",
-                                class_="panel-caption",
-                            ),
+                            ui.div("Gold Pieces (gp) to invest", class_="panel-caption"),
                         ),
                     ),
                     ui.div("Gold Pieces (gp) to invest", class_="field-label"),
-                    ui.input_numeric(
-                        "investment",
-                        label=None,
-                        value=0,
-                        min=0,
-                        step=10,
-                    ),
+                    ui.input_numeric("investment", None, value=0, min=0, step=10),
                     ui.div(
                         "*Optional: Enter 0 to test fortune without gold.",
                         class_="help-text",
                     ),
                 ),
-                # Narrative flair
                 ui.div(
                     {"class": "glass-panel"},
                     ui.div(
@@ -686,8 +670,6 @@ app_ui = ui.page_fluid(
                     ),
                 ),
             ),
-
-            # RIGHT COLUMN – wheel + earnings
             ui.div(
                 ui.div(
                     {"class": "glass-panel wheel-panel"},
@@ -700,7 +682,7 @@ app_ui = ui.page_fluid(
                                 {"class": "wheel-disc"},
                                 ui.tags.img(
                                     id="wheel-disc-img",
-                                    src="Wheel.png",  # served from static_assets
+                                    src="Wheel.png",
                                     class_="wheel",
                                 ),
                             ),
@@ -726,24 +708,15 @@ app_ui = ui.page_fluid(
                 ),
             ),
         ),
-
         ui.br(),
-
-        # Ledger
         ui.div(
             {"class": "glass-panel"},
             ui.div("THE TAVERN LEDGER", class_="section-title"),
             ui.output_table("ledger_table"),
-            ui.div(
-                ui.output_text("ledger_message"),
-                class_="ledger-footer-text",
-            ),
+            ui.div(ui.output_text("ledger_message"), class_="ledger-footer-text"),
         ),
     ),
 )
-
-
-# ========================= SERVER =========================
 
 def server(input, output, session):
     rotation = reactive.Value(0.0)
@@ -756,7 +729,6 @@ def server(input, output, session):
         investment = float(input.investment() or 0.0)
         flair_pct = int(input.flair() or "0")
 
-        # Determine loss vs profit
         is_loss = random.random() < LOSS_CHANCE
         loss_degrees = 360 * LOSS_CHANCE
         profit_degrees = 360 - loss_degrees
@@ -770,13 +742,11 @@ def server(input, output, session):
             result_pct = MIN_PROFIT_PERCENT + u * (MAX_PROFIT_PERCENT - MIN_PROFIT_PERCENT)
             target_angle = loss_degrees + u * profit_degrees
 
-        # Rotate wheel so the chosen sector ends up under the pointer at 90°
         extra_spins = 360 * random.randint(4, 7)
         final_rot = rotation() + extra_spins + (90 - target_angle)
         rotation.set(final_rot)
         session.send_custom_message("spin_wheel", {"angle": final_rot})
 
-        # Earnings maths
         base_profit = investment * (result_pct / 100.0)
         base_outcome = investment + base_profit
         flair_bonus_gp = base_outcome * (flair_pct / 100.0)
@@ -797,7 +767,6 @@ def server(input, output, session):
         last_result.set(state)
         ledger.set([state] + ledger())
 
-        # --- Tenday Results modal ---
         sign = "+" if result_pct >= 0 else ""
         wheel_str = f"{sign}{result_pct:.1f}%"
         flair_str = f"+{flair_pct}%"
@@ -841,8 +810,7 @@ def server(input, output, session):
                 ui.div(
                     {
                         "style": (
-                            "margin-top:0.35rem; "
-                            "display:flex; justify-content:space-between;"
+                            "margin-top:0.35rem; display:flex; justify-content:space-between;"
                         )
                     },
                     ui.span("FINAL AMOUNT", class_="results-final-label"),
@@ -860,7 +828,6 @@ def server(input, output, session):
         )
         ui.modal_show(modal)
 
-    # Status line under the wheel
     @render.text
     def status():
         res = last_result()
@@ -881,7 +848,6 @@ def server(input, output, session):
                 f"Gain of {pct:.1f}% — about {net:.1f} gp profit after a {flair_pct}% flair bonus."
             )
 
-    # Latest spin summary (top table)
     @render.table
     def latest_summary():
         res = last_result()
@@ -892,10 +858,8 @@ def server(input, output, session):
             "Net profit (gp)",
             "Final amount (gp)",
         ]
-
         if res is None:
             return pd.DataFrame(columns=cols)
-
         row = {
             "Investment (gp)": round(res["investment"], 1),
             "Fortune wheel": f"{res['wheel_pct']:.1f}%",
@@ -905,7 +869,6 @@ def server(input, output, session):
         }
         return pd.DataFrame([row], columns=cols)
 
-    # Ledger table (all spins)
     @render.table
     def ledger_table():
         rows = ledger()
@@ -917,10 +880,8 @@ def server(input, output, session):
             "Net profit (gp)",
             "Final amount (gp)",
         ]
-
         if not rows:
             return pd.DataFrame(columns=cols)
-
         display_rows = [
             {
                 "Date": r["date"],
@@ -940,7 +901,5 @@ def server(input, output, session):
             return "The ledger is empty. Spin the wheel to record business."
         return ""
 
-
-# Serve assets/ as the static directory (for Wheel.png, TavernBG - Trim.mp4, etc.)
 assets_dir = Path(__file__).parent / "assets"
 app = App(app_ui, server, static_assets=assets_dir)
