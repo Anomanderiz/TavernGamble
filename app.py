@@ -521,7 +521,7 @@ app_ui = ui.page_fluid(
 
             .wheel-pointer {
               position: absolute;
-              top: -3px;
+              top: -9px;
               left: 50%;
               transform: translateX(-50%);
               width: 0;
@@ -534,7 +534,7 @@ app_ui = ui.page_fluid(
 
             .wheel-pointer-pin {
               position: absolute;
-              top: 16px;
+              top: 10px;
               left: 50%;
               transform: translateX(-50%);
               width: 11px;
