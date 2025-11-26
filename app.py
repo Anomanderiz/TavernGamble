@@ -919,119 +919,122 @@ def server(input, output, session):
     if initial_ledger:
         ledger.set(initial_ledger)
 
-    @reactive.effect
-    @reactive.event(input.spin)
-    def _spin_wheel():
-        investment = float(input.investment() or 0.0)
-        flair_pct = int(input.flair() or "0")
+@reactive.effect
+@reactive.event(input.spin)
+async def _spin_wheel():
+    investment = float(input.investment() or 0.0)
+    flair_pct = int(input.flair() or "0")
 
-        # Determine loss vs profit
-        is_loss = random.random() < LOSS_CHANCE
-        loss_degrees = 360 * LOSS_CHANCE
-        profit_degrees = 360 - loss_degrees
+    # Determine loss vs profit
+    is_loss = random.random() < LOSS_CHANCE
+    loss_degrees = 360 * LOSS_CHANCE
+    profit_degrees = 360 - loss_degrees
 
-        if is_loss:
-            result_pct = LOSS_PERCENTAGE
-            margin = 2
-            target_angle = margin + random.random() * (loss_degrees - 2 * margin)
-        else:
-            u = random.random()
-            result_pct = MIN_PROFIT_PERCENT + u * (MAX_PROFIT_PERCENT - MIN_PROFIT_PERCENT)
-            target_angle = loss_degrees + u * profit_degrees
+    if is_loss:
+        result_pct = LOSS_PERCENTAGE
+        margin = 2
+        target_angle = margin + random.random() * (loss_degrees - 2 * margin)
+    else:
+        u = random.random()
+        result_pct = MIN_PROFIT_PERCENT + u * (MAX_PROFIT_PERCENT - MIN_PROFIT_PERCENT)
+        target_angle = loss_degrees + u * profit_degrees
 
-        # Rotate wheel so the chosen sector ends up under the pointer at 90°
-        extra_spins = 360 * random.randint(4, 7)
-        final_rot = rotation() + extra_spins + (90 - target_angle)
-        rotation.set(final_rot)
-        session.send_custom_message("spin_wheel", {"angle": final_rot})
+    # Rotate wheel so the chosen sector ends up under the pointer at 90°
+    extra_spins = 360 * random.randint(4, 7)
+    final_rot = rotation() + extra_spins + (90 - target_angle)
+    rotation.set(final_rot)
 
-        # Earnings maths
-        base_profit = investment * (result_pct / 100.0)
-        base_outcome = investment + base_profit
-        flair_bonus_gp = base_outcome * (flair_pct / 100.0)
-        final_with_flair = base_outcome + flair_bonus_gp
-        net_profit = final_with_flair - investment
+    # ✅ now awaited
+    await session.send_custom_message("spin_wheel", {"angle": final_rot})
 
-        state = {
-            "date": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
-            "investment": investment,
-            "wheel_pct": result_pct,
-            "flair_pct": flair_pct,
-            "base_outcome": base_outcome,
-            "flair_bonus_gp": flair_bonus_gp,
-            "net_profit": net_profit,
-            "final_amount": final_with_flair,
-        }
+    # Earnings maths
+    base_profit = investment * (result_pct / 100.0)
+    base_outcome = investment + base_profit
+    flair_bonus_gp = base_outcome * (flair_pct / 100.0)
+    final_with_flair = base_outcome + flair_bonus_gp
+    net_profit = final_with_flair - investment
 
-        # Update in-memory ledger (newest first)
-        current = ledger()
-        ledger.set([state] + current)
-        last_result.set(state)
+    state = {
+        "date": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
+        "investment": investment,
+        "wheel_pct": result_pct,
+        "flair_pct": flair_pct,
+        "base_outcome": base_outcome,
+        "flair_bonus_gp": flair_bonus_gp,
+        "net_profit": net_profit,
+        "final_amount": final_with_flair,
+    }
 
-        # Append to Google Sheets (no overwrites)
-        append_state_to_sheets(state)
+    # Update in-memory ledger (newest first)
+    current = ledger()
+    ledger.set([state] + current)
+    last_result.set(state)
 
-        # --- Tenday Results modal ---
-        sign = "+" if result_pct >= 0 else ""
-        wheel_str = f"{sign}{result_pct:.1f}%"
-        flair_str = f"+{flair_pct}%"
+    # Append to Google Sheets (no overwrites)
+    append_state_to_sheets(state)
 
-        modal_body = ui.div(
-            {"class": "results-modal"},
-            ui.div("!", class_="results-warning"),
-            ui.div("TENDAY RESULTS", class_="results-title"),
-            ui.div("The wheel has spoken!", class_="results-subtitle"),
+    # --- Tenday Results modal --- (unchanged from your version)
+    sign = "+" if result_pct >= 0 else ""
+    wheel_str = f"{sign}{result_pct:.1f}%"
+    flair_str = f"+{flair_pct}%"
+
+    modal_body = ui.div(
+        {"class": "results-modal"},
+        ui.div("!", class_="results-warning"),
+        ui.div("TENDAY RESULTS", class_="results-title"),
+        ui.div("The wheel has spoken!", class_="results-subtitle"),
+        ui.div(
+            {"class": "results-row"},
+            ui.span("Initial Investment:", class_="results-label"),
+            ui.span(f"{investment:.0f} gp", class_="results-value"),
+        ),
+        ui.div(
+            {"class": "results-row"},
+            ui.span("Wheel Result:", class_="results-label"),
+            ui.span(wheel_str, class_="results-value"),
+        ),
+        ui.div(
+            {"class": "results-row"},
+            ui.span("Base Outcome:", class_="results-label"),
+            ui.span(f"{base_outcome:.0f} gp", class_="results-value"),
+        ),
+        ui.div(
+            {"class": "results-row"},
+            ui.span("Narrative Flair Bonus:", class_="results-label"),
+            ui.span(flair_str, class_="results-value"),
+        ),
+        ui.div(
+            {"class": "results-muted"},
+            f"(Added {flair_bonus_gp:.0f} gp to gross total)",
+        ),
+        ui.div(class_="results-divider"),
+        ui.div(
+            {"class": "results-netbox"},
             ui.div(
-                {"class": "results-row"},
-                ui.span("Initial Investment:", class_="results-label"),
-                ui.span(f"{investment:.0f} gp", class_="results-value"),
+                ui.span("NET PROFIT", class_="results-net-label"),
+                ui.span(f"{net_profit:.0f} gp", class_="results-net-value"),
             ),
             ui.div(
-                {"class": "results-row"},
-                ui.span("Wheel Result:", class_="results-label"),
-                ui.span(wheel_str, class_="results-value"),
+                {
+                    "style": (
+                        "margin-top:0.35rem; display:flex; justify-content:space-between;"
+                    )
+                },
+                ui.span("FINAL AMOUNT", class_="results-final-label"),
+                ui.span(f"{final_with_flair:.0f} gp", class_="results-final-value"),
             ),
-            ui.div(
-                {"class": "results-row"},
-                ui.span("Base Outcome:", class_="results-label"),
-                ui.span(f"{base_outcome:.0f} gp", class_="results-value"),
-            ),
-            ui.div(
-                {"class": "results-row"},
-                ui.span("Narrative Flair Bonus:", class_="results-label"),
-                ui.span(flair_str, class_="results-value"),
-            ),
-            ui.div(
-                {"class": "results-muted"},
-                f"(Added {flair_bonus_gp:.0f} gp to gross total)",
-            ),
-            ui.div(class_="results-divider"),
-            ui.div(
-                {"class": "results-netbox"},
-                ui.div(
-                    ui.span("NET PROFIT", class_="results-net-label"),
-                    ui.span(f"{net_profit:.0f} gp", class_="results-net-value"),
-                ),
-                ui.div(
-                    {
-                        "style": (
-                            "margin-top:0.35rem; display:flex; justify-content:space-between;"
-                        )
-                    },
-                    ui.span("FINAL AMOUNT", class_="results-final-label"),
-                    ui.span(f"{final_with_flair:.0f} gp", class_="results-final-value"),
-                ),
-            ),
-        )
+        ),
+    )
 
-        modal = ui.modal(
-            modal_body,
-            title=None,
-            easy_close=True,
-            footer=ui.modal_button("Record in Ledger", class_="btn btn-record"),
-            size="m",
-        )
-        ui.modal_show(modal)
+    modal = ui.modal(
+        modal_body,
+        title=None,
+        easy_close=True,
+        footer=ui.modal_button("Record in Ledger", class_="btn btn-record"),
+        size="m",
+    )
+    ui.modal_show(modal)
+
 
     @render.text
     def status():
