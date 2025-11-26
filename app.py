@@ -322,7 +322,7 @@ app_ui = ui.page_fluid(
               background:
                 radial-gradient(circle at top,
                   rgba(10, 6, 3, 0.35) 0,
-                  rgba(3, 2, 2, 0.88) 30%);
+                  rgba(3, 2, 2, 0.88) 10%);
               z-index: -1;
             }
 
