@@ -32,7 +32,6 @@ app_ui = ui.page_fluid(
                 Shiny.addCustomMessageHandler('spin_wheel', function(message) {
                   var el = document.getElementById('wheel-disc-img');
                   if (!el) return;
-                  // Keep centred; rotate, but do NOT scale here
                   el.style.transform =
                     'translate(-50%, -50%) rotate(' + message.angle + 'deg)';
                 });
@@ -43,9 +42,10 @@ app_ui = ui.page_fluid(
         ui.tags.style(
             """
             body {
-              background: radial-gradient(circle at top, #262321 0, #0f0d0b 55%);
+              background: #050304;
               color: #fce7b2;
               min-height: 100vh;
+              margin: 0;
             }
 
             ::selection {
@@ -57,6 +57,36 @@ app_ui = ui.page_fluid(
               color: #ffffff;
             }
 
+            /* -------- VIDEO BACKGROUND -------- */
+
+            .bg-video-container {
+              position: fixed;
+              inset: 0;
+              overflow: hidden;
+              z-index: -2;
+            }
+
+            .bg-video {
+              position: absolute;
+              top: 50%;
+              left: 50%;
+              min-width: 100%;
+              min-height: 100%;
+              transform: translate(-50%, -50%);
+              object-fit: cover;
+              filter: saturate(1.1) contrast(1.05);
+            }
+
+            .bg-overlay {
+              position: fixed;
+              inset: 0;
+              background:
+                radial-gradient(circle at top,
+                  rgba(10, 6, 3, 0.35) 0,
+                  rgba(3, 2, 2, 0.88) 55%);
+              z-index: -1;
+            }
+
             .app-shell {
               max-width: 1200px;
               margin: 0 auto 2rem auto;
@@ -66,11 +96,12 @@ app_ui = ui.page_fluid(
             /* ---------- HEADER ---------- */
 
             .app-header {
-              background: #171311;
-              border-bottom: 1px solid #5a3c18;
-              box-shadow: 0 10px 30px rgba(0,0,0,0.8);
+              background: rgba(15, 10, 6, 0.70);
+              border-bottom: 1px solid rgba(90, 60, 24, 0.8);
+              box-shadow: 0 10px 30px rgba(0,0,0,0.85);
               padding: 0.8rem 0;
               margin-bottom: 1.5rem;
+              backdrop-filter: blur(16px) saturate(130%);
             }
 
             .app-header-inner {
@@ -140,11 +171,12 @@ app_ui = ui.page_fluid(
             }
 
             .glass-panel {
-              background: radial-gradient(circle at top, #211b16 0, #14100e 65%);
+              background: rgba(17, 13, 10, 0.58);
               border-radius: 12px;
-              border: 1px solid #6b4a20;
-              box-shadow: 0 14px 32px rgba(0,0,0,0.9);
+              border: 1px solid rgba(107, 74, 32, 0.9);
+              box-shadow: 0 18px 40px rgba(0,0,0,0.9);
               padding: 1.1rem 1.2rem;
+              backdrop-filter: blur(18px) saturate(130%);
             }
 
             .panel-header {
@@ -178,7 +210,7 @@ app_ui = ui.page_fluid(
             .panel-caption {
               font-family: 'Spectral', serif;
               font-size: 0.78rem;
-              color: #d6b47a;
+              color: #f8e0bb;
             }
 
             .field-label {
@@ -196,7 +228,7 @@ app_ui = ui.page_fluid(
             }
 
             .form-control {
-              background-color: #16120f;
+              background-color: rgba(22, 18, 15, 0.85);
               border-radius: 8px;
               border: 1px solid #4c3620;
               color: #fce7b2;
@@ -224,7 +256,7 @@ app_ui = ui.page_fluid(
               gap: 0.5rem;
               padding: 0.55rem 0.75rem;
               border-radius: 10px;
-              background: #18100d;
+              background: rgba(24, 16, 13, 0.9);
               border: 1px solid #5f4020;
               color: #fef3d5;
               font-family: 'Spectral', serif;
@@ -259,16 +291,17 @@ app_ui = ui.page_fluid(
             }
 
             .wheel-shell {
-              background: radial-gradient(circle at center, rgba(255,208,120,0.22), transparent 60%);
+              background: rgba(15, 11, 8, 0.70);
               border-radius: 14px;
               padding: 1.0rem 1.0rem 0.9rem 1.0rem;
               border: 1px solid #6b4a20;
+              backdrop-filter: blur(18px) saturate(130%);
             }
 
             .wheel-wrapper {
               position: relative;
-              width: 500px;
-              height: 500px;
+              width: 280px;
+              height: 280px;
               margin: 0.3rem auto 0.2rem auto;
             }
 
@@ -277,8 +310,8 @@ app_ui = ui.page_fluid(
               position: absolute;
               top: 50%;
               left: 50%;
-              width: 500px;
-              height: 500px;
+              width: 280px;
+              height: 280px;
               transform: translate(-50%, -50%);
               border-radius: 50%;
               background: radial-gradient(circle at center, #2b231e 0, #15100d 68%);
@@ -290,8 +323,8 @@ app_ui = ui.page_fluid(
               position: absolute;
               top: 50%;
               left: 50%;
-              width: 250%;
-              height: 250%;
+              width: 118%;
+              height: 118%;
               max-width: none;
               max-height: none;
               object-fit: contain;
@@ -310,7 +343,7 @@ app_ui = ui.page_fluid(
 
             .wheel-pointer {
               position: absolute;
-              top: -12px;
+              top: -3px;
               left: 50%;
               transform: translateX(-50%);
               width: 0;
@@ -323,7 +356,7 @@ app_ui = ui.page_fluid(
 
             .wheel-pointer-pin {
               position: absolute;
-              top: 10px;
+              top: 16px;
               left: 50%;
               transform: translateX(-50%);
               width: 11px;
@@ -392,30 +425,30 @@ app_ui = ui.page_fluid(
             table {
               font-size: 0.8rem;
               font-family: 'Spectral', serif;
-              background-color: #18100d;
+              background-color: rgba(24, 16, 13, 0.95);
               color: #ffffff;
             }
 
             table thead tr th {
-              background-color: #1a130f !important;
+              background-color: rgba(26, 19, 15, 0.98) !important;
               color: #f9deb1 !important;
               border-bottom: 1px solid #46301a !important;
             }
 
             table tbody tr td {
-              background-color: #18100d !important;
+              background-color: rgba(24, 16, 13, 0.95) !important;
               border-color: #3b2816 !important;
               color: #ffffff !important;
             }
 
             .table-striped > tbody > tr:nth-of-type(odd) > td {
-              background-color: #201612 !important;
+              background-color: rgba(32, 22, 18, 0.98) !important;
             }
 
             .ledger-footer-text {
               font-family: 'Spectral', serif;
               font-size: 0.78rem;
-              color: #b89c6f;
+              color: #f5d0a6;
               margin-top: 0.3rem;
               text-align: center;
               font-style: italic;
@@ -560,6 +593,20 @@ app_ui = ui.page_fluid(
             """
         ),
     ),
+
+    # --- VIDEO BACKGROUND LAYERS ---
+    ui.div(
+        {"class": "bg-video-container"},
+        ui.tags.video(
+            ui.tags.source(src="TavernBG - Trim.mp4", type="video/mp4"),
+            autoplay="autoplay",
+            muted="muted",
+            loop="loop",
+            playsinline="playsinline",
+            class_="bg-video",
+        ),
+    ),
+    ui.div({"class": "bg-overlay"}),
 
     # Header bar
     ui.div(
@@ -894,6 +941,6 @@ def server(input, output, session):
         return ""
 
 
-# Serve assets/ as the static directory (for Wheel.png)
+# Serve assets/ as the static directory (for Wheel.png, TavernBG - Trim.mp4, etc.)
 assets_dir = Path(__file__).parent / "assets"
 app = App(app_ui, server, static_assets=assets_dir)
