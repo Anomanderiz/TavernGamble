@@ -5,6 +5,7 @@ import random
 import pandas as pd
 import os
 import json
+import inspect
 
 # Optional import – if missing, app still runs but without Sheets sync
 try:
@@ -49,11 +50,9 @@ def _build_gspread_client(info: dict):
     Build a gspread client from a service account info dict.
     Tries service_account_from_dict first; falls back to google-auth.
     """
-    # Prefer the helper if available (gspread >= 5)
     if hasattr(gspread, "service_account_from_dict"):
         return gspread.service_account_from_dict(info)
 
-    # Fallback: manually build credentials and authorise
     from google.oauth2.service_account import Credentials  # type: ignore
 
     scopes = ["https://www.googleapis.com/auth/spreadsheets"]
@@ -91,10 +90,19 @@ def get_worksheet():
     try:
         gc = _build_gspread_client(info)
         sh = gc.open_by_key(GOOGLE_SHEET_ID)
+    except Exception as e:
+        print(
+            f"[Sheets] Failed to open spreadsheet {GOOGLE_SHEET_ID!r}: {e}"
+        )
+        return None
+
+    try:
         ws = sh.worksheet(GOOGLE_SHEET_TAB)
         return ws
     except Exception as e:
-        print(f"[Sheets] Failed to open worksheet: {e}")
+        print(
+            f"[Sheets] Failed to open worksheet/tab {GOOGLE_SHEET_TAB!r}: {e}"
+        )
         return None
 
 
@@ -109,7 +117,6 @@ def ensure_header_row(ws):
         print(f"[Sheets] Failed reading header row: {e}")
         existing = []
 
-    # If row 1 is completely empty (no non-whitespace cells), set our headers
     if not any((cell or "").strip() for cell in existing):
         try:
             ws.update("A1", [LEDGER_HEADERS])
@@ -162,7 +169,6 @@ def load_ledger_from_sheets():
         except Exception as e:
             print(f"[Sheets] Skipping malformed row {r}: {e}")
 
-    # Sheet will naturally be oldest → newest; we want newest first in memory
     states.reverse()
     print(f"[Sheets] Loaded {len(states)} ledger entries from Sheets.")
     return states
@@ -208,7 +214,6 @@ app_ui = ui.page_fluid(
                 "family=Spectral:wght@400;600&display=swap"
             ),
         ),
-        # JS handler: rotate ONLY the wheel image on server message
         ui.tags.script(
             """
             document.addEventListener('DOMContentLoaded', function() {
@@ -240,8 +245,6 @@ app_ui = ui.page_fluid(
               background: #f97316;
               color: #ffffff;
             }
-
-            /* -------- VIDEO BACKGROUND -------- */
 
             .bg-video-container {
               position: fixed;
@@ -276,8 +279,6 @@ app_ui = ui.page_fluid(
               margin: 0 auto 2rem auto;
               padding: 0 1.5rem 2rem 1.5rem;
             }
-
-            /* ---------- HEADER ---------- */
 
             .app-header {
               background: rgba(15, 10, 6, 0.70);
@@ -339,8 +340,6 @@ app_ui = ui.page_fluid(
               font-size: 0.75rem;
               color: #f9d474;
             }
-
-            /* ---------- LAYOUT ---------- */
 
             .main-grid {
               display: grid;
@@ -423,8 +422,6 @@ app_ui = ui.page_fluid(
               box-shadow: 0 0 0 1px #f1b13b;
             }
 
-            /* ---------- NARRATIVE FLAIR RADIO ---------- */
-
             .shiny-input-radiogroup {
               margin-top: 0.5rem;
             }
@@ -457,8 +454,6 @@ app_ui = ui.page_fluid(
             .shiny-input-radiogroup input[type="radio"] {
               margin-right: 0.45rem;
             }
-
-            /* ---------- WHEEL ---------- */
 
             .wheel-panel {
               padding: 1.1rem 1.3rem 1.2rem 1.3rem;
@@ -603,8 +598,6 @@ app_ui = ui.page_fluid(
               text-align: center;
             }
 
-            /* ---------- TABLES (glass) ---------- */
-
             table {
               font-size: 0.8rem;
               font-family: 'Spectral', serif;
@@ -646,8 +639,6 @@ app_ui = ui.page_fluid(
               margin-bottom: 0.8rem;
               color: #f9dfaa;
             }
-
-            /* ---------- MODAL ---------- */
 
             .modal-content {
               border-radius: 14px;
@@ -778,7 +769,6 @@ app_ui = ui.page_fluid(
         ),
     ),
 
-    # Background video & overlay
     ui.div(
         {"class": "bg-video-container"},
         ui.tags.video(
@@ -792,7 +782,6 @@ app_ui = ui.page_fluid(
     ),
     ui.div({"class": "bg-overlay"}),
 
-    # Header bar
     ui.div(
         {"class": "app-header"},
         ui.div(
@@ -809,7 +798,6 @@ app_ui = ui.page_fluid(
         ),
     ),
 
-    # Main layout
     ui.div(
         {"class": "app-shell"},
         ui.div(
@@ -914,127 +902,133 @@ def server(input, output, session):
     last_result = reactive.Value(None)
     ledger = reactive.Value([])
 
-    # --- Load existing ledger from Google Sheets on session start ---
+    # Load existing ledger from Google Sheets on session start
     initial_ledger = load_ledger_from_sheets()
     if initial_ledger:
         ledger.set(initial_ledger)
 
-@reactive.effect
-@reactive.event(input.spin)
-async def _spin_wheel():
-    investment = float(input.investment() or 0.0)
-    flair_pct = int(input.flair() or "0")
+    @reactive.effect
+    @reactive.event(input.spin)
+    async def _spin_wheel():
+        investment = float(input.investment() or 0.0)
+        flair_pct = int(input.flair() or "0")
 
-    # Determine loss vs profit
-    is_loss = random.random() < LOSS_CHANCE
-    loss_degrees = 360 * LOSS_CHANCE
-    profit_degrees = 360 - loss_degrees
+        # Determine loss vs profit
+        is_loss = random.random() < LOSS_CHANCE
+        loss_degrees = 360 * LOSS_CHANCE
+        profit_degrees = 360 - loss_degrees
 
-    if is_loss:
-        result_pct = LOSS_PERCENTAGE
-        margin = 2
-        target_angle = margin + random.random() * (loss_degrees - 2 * margin)
-    else:
-        u = random.random()
-        result_pct = MIN_PROFIT_PERCENT + u * (MAX_PROFIT_PERCENT - MIN_PROFIT_PERCENT)
-        target_angle = loss_degrees + u * profit_degrees
+        if is_loss:
+            result_pct = LOSS_PERCENTAGE
+            margin = 2
+            target_angle = margin + random.random() * (loss_degrees - 2 * margin)
+        else:
+            u = random.random()
+            result_pct = MIN_PROFIT_PERCENT + u * (
+                MAX_PROFIT_PERCENT - MIN_PROFIT_PERCENT
+            )
+            target_angle = loss_degrees + u * profit_degrees
 
-    # Rotate wheel so the chosen sector ends up under the pointer at 90°
-    extra_spins = 360 * random.randint(4, 7)
-    final_rot = rotation() + extra_spins + (90 - target_angle)
-    rotation.set(final_rot)
+        # Rotate wheel so the chosen sector ends up under the pointer at 90°
+        extra_spins = 360 * random.randint(4, 7)
+        final_rot = rotation() + extra_spins + (90 - target_angle)
+        rotation.set(final_rot)
 
-    # ✅ now awaited
-    await session.send_custom_message("spin_wheel", {"angle": final_rot})
+        # Safe await for send_custom_message (handles both sync/async versions)
+        maybe_coro = session.send_custom_message("spin_wheel", {"angle": final_rot})
+        if inspect.isawaitable(maybe_coro):
+            await maybe_coro
 
-    # Earnings maths
-    base_profit = investment * (result_pct / 100.0)
-    base_outcome = investment + base_profit
-    flair_bonus_gp = base_outcome * (flair_pct / 100.0)
-    final_with_flair = base_outcome + flair_bonus_gp
-    net_profit = final_with_flair - investment
+        # Earnings maths
+        base_profit = investment * (result_pct / 100.0)
+        base_outcome = investment + base_profit
+        flair_bonus_gp = base_outcome * (flair_pct / 100.0)
+        final_with_flair = base_outcome + flair_bonus_gp
+        net_profit = final_with_flair - investment
 
-    state = {
-        "date": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
-        "investment": investment,
-        "wheel_pct": result_pct,
-        "flair_pct": flair_pct,
-        "base_outcome": base_outcome,
-        "flair_bonus_gp": flair_bonus_gp,
-        "net_profit": net_profit,
-        "final_amount": final_with_flair,
-    }
+        state = {
+            "date": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
+            "investment": investment,
+            "wheel_pct": result_pct,
+            "flair_pct": flair_pct,
+            "base_outcome": base_outcome,
+            "flair_bonus_gp": flair_bonus_gp,
+            "net_profit": net_profit,
+            "final_amount": final_with_flair,
+        }
 
-    # Update in-memory ledger (newest first)
-    current = ledger()
-    ledger.set([state] + current)
-    last_result.set(state)
+        # Update in-memory ledger (newest first)
+        current = ledger()
+        ledger.set([state] + current)
+        last_result.set(state)
 
-    # Append to Google Sheets (no overwrites)
-    append_state_to_sheets(state)
+        # Append to Google Sheets (no overwrites)
+        append_state_to_sheets(state)
 
-    # --- Tenday Results modal --- (unchanged from your version)
-    sign = "+" if result_pct >= 0 else ""
-    wheel_str = f"{sign}{result_pct:.1f}%"
-    flair_str = f"+{flair_pct}%"
+        # Tenday Results modal
+        sign = "+" if result_pct >= 0 else ""
+        wheel_str = f"{sign}{result_pct:.1f}%"
+        flair_str = f"+{flair_pct}%"
 
-    modal_body = ui.div(
-        {"class": "results-modal"},
-        ui.div("!", class_="results-warning"),
-        ui.div("TENDAY RESULTS", class_="results-title"),
-        ui.div("The wheel has spoken!", class_="results-subtitle"),
-        ui.div(
-            {"class": "results-row"},
-            ui.span("Initial Investment:", class_="results-label"),
-            ui.span(f"{investment:.0f} gp", class_="results-value"),
-        ),
-        ui.div(
-            {"class": "results-row"},
-            ui.span("Wheel Result:", class_="results-label"),
-            ui.span(wheel_str, class_="results-value"),
-        ),
-        ui.div(
-            {"class": "results-row"},
-            ui.span("Base Outcome:", class_="results-label"),
-            ui.span(f"{base_outcome:.0f} gp", class_="results-value"),
-        ),
-        ui.div(
-            {"class": "results-row"},
-            ui.span("Narrative Flair Bonus:", class_="results-label"),
-            ui.span(flair_str, class_="results-value"),
-        ),
-        ui.div(
-            {"class": "results-muted"},
-            f"(Added {flair_bonus_gp:.0f} gp to gross total)",
-        ),
-        ui.div(class_="results-divider"),
-        ui.div(
-            {"class": "results-netbox"},
+        modal_body = ui.div(
+            {"class": "results-modal"},
+            ui.div("!", class_="results-warning"),
+            ui.div("TENDAY RESULTS", class_="results-title"),
+            ui.div("The wheel has spoken!", class_="results-subtitle"),
             ui.div(
-                ui.span("NET PROFIT", class_="results-net-label"),
-                ui.span(f"{net_profit:.0f} gp", class_="results-net-value"),
+                {"class": "results-row"},
+                ui.span("Initial Investment:", class_="results-label"),
+                ui.span(f"{investment:.0f} gp", class_="results-value"),
             ),
             ui.div(
-                {
-                    "style": (
-                        "margin-top:0.35rem; display:flex; justify-content:space-between;"
-                    )
-                },
-                ui.span("FINAL AMOUNT", class_="results-final-label"),
-                ui.span(f"{final_with_flair:.0f} gp", class_="results-final-value"),
+                {"class": "results-row"},
+                ui.span("Wheel Result:", class_="results-label"),
+                ui.span(wheel_str, class_="results-value"),
             ),
-        ),
-    )
+            ui.div(
+                {"class": "results-row"},
+                ui.span("Base Outcome:", class_="results-label"),
+                ui.span(f"{base_outcome:.0f} gp", class_="results-value"),
+            ),
+            ui.div(
+                {"class": "results-row"},
+                ui.span("Narrative Flair Bonus:", class_="results-label"),
+                ui.span(flair_str, class_="results-value"),
+            ),
+            ui.div(
+                {"class": "results-muted"},
+                f"(Added {flair_bonus_gp:.0f} gp to gross total)",
+            ),
+            ui.div(class_="results-divider"),
+            ui.div(
+                {"class": "results-netbox"},
+                ui.div(
+                    ui.span("NET PROFIT", class_="results-net-label"),
+                    ui.span(f"{net_profit:.0f} gp", class_="results-net-value"),
+                ),
+                ui.div(
+                    {
+                        "style": (
+                            "margin-top:0.35rem; display:flex; "
+                            "justify-content:space-between;"
+                        )
+                    },
+                    ui.span("FINAL AMOUNT", class_="results-final-label"),
+                    ui.span(
+                        f"{final_with_flair:.0f} gp", class_="results-final-value"
+                    ),
+                ),
+            ),
+        )
 
-    modal = ui.modal(
-        modal_body,
-        title=None,
-        easy_close=True,
-        footer=ui.modal_button("Record in Ledger", class_="btn btn-record"),
-        size="m",
-    )
-    ui.modal_show(modal)
-
+        modal = ui.modal(
+            modal_body,
+            title=None,
+            easy_close=True,
+            footer=ui.modal_button("Record in Ledger", class_="btn btn-record"),
+            size="m",
+        )
+        ui.modal_show(modal)
 
     @render.text
     def status():
@@ -1059,7 +1053,8 @@ async def _spin_wheel():
             )
         else:
             return (
-                f"Gain of {pct:.1f}% — about {net:.1f} gp profit after a {flair_pct}% flair bonus."
+                f"Gain of {pct:.1f}% — about {net:.1f} gp profit after a "
+                f"{flair_pct}% flair bonus."
             )
 
     @render.table
