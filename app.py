@@ -501,8 +501,8 @@ app_ui = ui.page_fluid(
               position: absolute;
               top: 50%;
               left: 50%;
-              width: 200%;
-              height: 200%;
+              width: 218%;
+              height: 218%;
               max-width: none;
               max-height: none;
               object-fit: contain;
