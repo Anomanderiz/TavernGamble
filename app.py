@@ -267,8 +267,8 @@ app_ui = ui.page_fluid(
 
             .wheel-wrapper {
               position: relative;
-              width: 280px;
-              height: 280px;
+              width: 320px;
+              height: 320px;
               margin: 0.3rem auto 0.2rem auto;
             }
 
@@ -277,8 +277,8 @@ app_ui = ui.page_fluid(
               position: absolute;
               top: 50%;
               left: 50%;
-              width: 280px;
-              height: 280px;
+              width: 320px;
+              height: 320px;
               transform: translate(-50%, -50%);
               border-radius: 50%;
               background: radial-gradient(circle at center, #2b231e 0, #15100d 68%);
@@ -290,8 +290,8 @@ app_ui = ui.page_fluid(
               position: absolute;
               top: 50%;
               left: 50%;
-              width: 350%;
-              height: 350%;
+              width: 118%;
+              height: 118%;
               max-width: none;
               max-height: none;
               object-fit: contain;
@@ -310,7 +310,7 @@ app_ui = ui.page_fluid(
 
             .wheel-pointer {
               position: absolute;
-              top: -6px;
+              top: -12px;
               left: 50%;
               transform: translateX(-50%);
               width: 0;
@@ -323,7 +323,7 @@ app_ui = ui.page_fluid(
 
             .wheel-pointer-pin {
               position: absolute;
-              top: 16px;
+              top: 25px;
               left: 50%;
               transform: translateX(-50%);
               width: 11px;
