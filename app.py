@@ -20,6 +20,8 @@ LOSS_CHANCE = 0.10          # 10% chance to suffer a loss
 LOSS_PERCENTAGE = -50       # -50% result when loss happens
 MIN_PROFIT_PERCENT = 20     # 20% minimum profit
 MAX_PROFIT_PERCENT = 200    # 200% maximum profit
+INSIDER_TRADING_BONUS = 0.10  # Optional +10% on the final total when armed
+INSIDER_LOSS_MULTIPLIER = 2   # ...but doubles the chance of a loss occurring
 
 
 # --- Google Sheets configuration (all via env vars) ---
@@ -816,6 +818,342 @@ app_ui = ui.page_fluid(
             .btn-record:hover {
               filter: brightness(1.04);
             }
+
+            /* ===== Insider Trading buff (optional, risk/reward) ===== */
+            @keyframes insiderGlow {
+              0%, 100% {
+                box-shadow:
+                  0 0 14px rgba(52, 211, 153, 0.40),
+                  0 18px 40px rgba(0,0,0,0.9);
+              }
+              50% {
+                box-shadow:
+                  0 0 28px rgba(52, 211, 153, 0.85),
+                  0 18px 40px rgba(0,0,0,0.9);
+              }
+            }
+
+            @keyframes insiderShine {
+              0% { left: -60%; }
+              60%, 100% { left: 140%; }
+            }
+
+            @keyframes insiderPulse {
+              0%, 100% { opacity: 0.65; }
+              50% { opacity: 1; }
+            }
+
+            .insider-option {
+              position: relative;
+              overflow: hidden;
+              border-radius: 12px;
+              border: 1px solid #f59e0b;
+              background: linear-gradient(
+                135deg,
+                rgba(67, 33, 5, 0.85),
+                rgba(20, 14, 10, 0.92)
+              );
+              padding: 0.85rem 1rem;
+              backdrop-filter: blur(18px) saturate(130%);
+              box-shadow:
+                0 0 14px rgba(245, 158, 11, 0.35),
+                0 18px 40px rgba(0,0,0,0.9);
+              transition: border-color .25s ease, background .25s ease;
+            }
+
+            .insider-option::after {
+              content: "";
+              position: absolute;
+              top: 0;
+              left: -60%;
+              width: 40%;
+              height: 100%;
+              background: linear-gradient(
+                120deg,
+                transparent,
+                rgba(255, 255, 255, 0.25),
+                transparent
+              );
+              transform: skewX(-20deg);
+              animation: insiderShine 3.4s ease-in-out infinite;
+              pointer-events: none;
+            }
+
+            /* When the option is armed, the whole panel flips emerald and glows */
+            .insider-option:has(input:checked) {
+              border-color: #34d399;
+              background: linear-gradient(
+                135deg,
+                rgba(6, 78, 59, 0.88),
+                rgba(20, 14, 10, 0.92)
+              );
+              animation: insiderGlow 2.4s ease-in-out infinite;
+            }
+
+            .insider-option-head {
+              position: relative;
+              z-index: 1;
+              display: flex;
+              align-items: center;
+              gap: 0.6rem;
+              margin-bottom: 0.5rem;
+            }
+
+            .insider-option-glyph {
+              width: 32px;
+              height: 32px;
+              border-radius: 50%;
+              display: flex;
+              align-items: center;
+              justify-content: center;
+              font-size: 1rem;
+              border: 1px solid #fcd34d;
+              background: radial-gradient(circle at 30% 0%, #fef3c7, #f59e0b);
+              box-shadow: 0 0 12px rgba(245, 158, 11, 0.8);
+              transition: all .25s ease;
+            }
+
+            .insider-option:has(input:checked) .insider-option-glyph {
+              border-color: #6ee7b7;
+              background: radial-gradient(circle at 30% 0%, #d1fae5, #10b981);
+              box-shadow: 0 0 12px rgba(52, 211, 153, 0.85);
+            }
+
+            .insider-option-title {
+              font-family: 'Cinzel Decorative', serif;
+              text-transform: uppercase;
+              letter-spacing: 0.14em;
+              font-size: 0.8rem;
+              color: #fde68a;
+            }
+
+            .insider-option:has(input:checked) .insider-option-title {
+              color: #d1fae5;
+            }
+
+            .insider-option-sub {
+              font-family: 'Spectral', serif;
+              font-size: 0.72rem;
+              color: #fbbf24;
+            }
+
+            .insider-option:has(input:checked) .insider-option-sub {
+              color: #a7f3d0;
+            }
+
+            .insider-option-flag {
+              margin-left: auto;
+              font-family: 'Spectral', serif;
+              font-size: 0.62rem;
+              letter-spacing: 0.14em;
+              text-transform: uppercase;
+              color: #fcd34d;
+              border: 1px solid #f59e0b;
+              border-radius: 999px;
+              padding: 0.1rem 0.5rem;
+              animation: insiderPulse 2.2s ease-in-out infinite;
+            }
+
+            .insider-option .checkbox,
+            .insider-option .form-check,
+            .insider-option .shiny-input-container {
+              position: relative;
+              z-index: 1;
+              margin-bottom: 0;
+            }
+
+            .insider-option label {
+              font-family: 'Spectral', serif;
+              font-size: 0.82rem;
+              color: #fdf3cd;
+              cursor: pointer;
+            }
+
+            .insider-option input[type="checkbox"] {
+              accent-color: #f59e0b;
+              width: 1rem;
+              height: 1rem;
+              cursor: pointer;
+              margin-right: 0.4rem;
+            }
+
+            .insider-option:has(input:checked) input[type="checkbox"] {
+              accent-color: #10b981;
+            }
+
+            .insider-option-stats {
+              position: relative;
+              z-index: 1;
+              display: flex;
+              gap: 0.5rem;
+              flex-wrap: wrap;
+              margin-top: 0.55rem;
+            }
+
+            .insider-stat {
+              font-family: 'Spectral', serif;
+              font-size: 0.68rem;
+              padding: 0.12rem 0.5rem;
+              border-radius: 999px;
+              letter-spacing: 0.03em;
+            }
+
+            .insider-stat.benefit {
+              color: #6ee7b7;
+              border: 1px solid #34d399;
+              background: rgba(16, 185, 129, 0.15);
+            }
+
+            .insider-stat.risk {
+              color: #fda4af;
+              border: 1px solid #f43f5e;
+              background: rgba(244, 63, 94, 0.15);
+            }
+
+            /* ===== Insider Trading reminder dialogue ===== */
+            .insider-modal {
+              font-family: 'Spectral', serif;
+              color: #fef3d5;
+            }
+
+            .insider-modal-glyph {
+              width: 46px;
+              height: 46px;
+              border-radius: 50%;
+              display: flex;
+              align-items: center;
+              justify-content: center;
+              font-size: 1.4rem;
+              margin: 0 auto 0.5rem auto;
+              border: 2px solid #f59e0b;
+              background: radial-gradient(circle at 30% 0%, #fef3c7, #f59e0b);
+              color: #3a2410;
+              box-shadow: 0 0 18px rgba(245, 158, 11, 0.7);
+            }
+
+            .insider-modal-title {
+              font-family: 'Cinzel Decorative', serif;
+              text-transform: uppercase;
+              letter-spacing: 0.18em;
+              font-size: 1rem;
+              text-align: center;
+              color: #fde68a;
+            }
+
+            .insider-modal-subtitle {
+              font-size: 0.78rem;
+              text-align: center;
+              margin-bottom: 0.85rem;
+              color: #facc85;
+            }
+
+            .insider-modal-benefit,
+            .insider-modal-risk {
+              display: flex;
+              align-items: flex-start;
+              gap: 0.55rem;
+              padding: 0.55rem 0.7rem;
+              border-radius: 10px;
+              margin-bottom: 0.5rem;
+              font-size: 0.84rem;
+            }
+
+            .insider-modal-benefit {
+              border: 1px solid #34d399;
+              background: linear-gradient(
+                135deg,
+                rgba(6, 78, 59, 0.55),
+                rgba(20, 14, 10, 0.5)
+              );
+            }
+
+            .insider-modal-risk {
+              border: 1px solid #f43f5e;
+              background: linear-gradient(
+                135deg,
+                rgba(76, 5, 25, 0.55),
+                rgba(20, 14, 10, 0.5)
+              );
+            }
+
+            .insider-modal-tag {
+              font-family: 'Cinzel Decorative', serif;
+              font-size: 0.66rem;
+              letter-spacing: 0.08em;
+              text-transform: uppercase;
+              white-space: nowrap;
+            }
+
+            .insider-modal-tag.benefit { color: #6ee7b7; }
+            .insider-modal-tag.risk { color: #fda4af; }
+
+            .insider-modal-foot {
+              text-align: center;
+              font-style: italic;
+              font-size: 0.78rem;
+              color: #f5d0a6;
+              margin-top: 0.4rem;
+            }
+
+            .btn-insider-cancel {
+              text-transform: uppercase;
+              letter-spacing: 0.1em;
+              font-family: 'Cinzel Decorative', serif;
+              font-size: 0.74rem;
+              border-radius: 999px;
+              border: 1px solid #6b4a20;
+              background: rgba(24, 16, 13, 0.9);
+              color: #fde68a;
+            }
+
+            .btn-insider-confirm {
+              text-transform: uppercase;
+              letter-spacing: 0.1em;
+              font-family: 'Cinzel Decorative', serif;
+              font-size: 0.74rem;
+              border-radius: 999px;
+              border: 1px solid #f43f5e;
+              background: linear-gradient(135deg, #f43f5e, #f59e0b);
+              color: #1f140c;
+            }
+
+            .btn-insider-confirm:hover { filter: brightness(1.05); }
+
+            .results-insider-row {
+              display: flex;
+              justify-content: space-between;
+              align-items: center;
+              margin: 0.45rem 0 0.2rem 0;
+              padding: 0.4rem 0.65rem;
+              border-radius: 8px;
+              border: 1px solid #34d399;
+              background: linear-gradient(
+                135deg,
+                rgba(6, 78, 59, 0.6),
+                rgba(20, 14, 10, 0.55)
+              );
+              animation: insiderGlow 2.8s ease-in-out infinite;
+            }
+
+            .results-insider-label {
+              display: flex;
+              align-items: center;
+              gap: 0.4rem;
+              font-size: 0.82rem;
+              text-transform: uppercase;
+              letter-spacing: 0.08em;
+              color: #6ee7b7;
+            }
+
+            .results-insider-glyph {
+              font-size: 0.95rem;
+            }
+
+            .results-insider-value {
+              font-weight: 700;
+              color: #a7f3d0;
+              text-shadow: 0 0 10px rgba(52, 211, 153, 0.85);
+            }
             """
         ),
     ),
@@ -855,6 +1193,34 @@ app_ui = ui.page_fluid(
             {"class": "main-grid"},
             ui.div(
                 {"class": "left-stack"},
+                ui.div(
+                    {"class": "insider-option"},
+                    ui.div(
+                        {"class": "insider-option-head"},
+                        ui.div("🤫", class_="insider-option-glyph"),
+                        ui.div(
+                            ui.div("INSIDER TRADING", class_="insider-option-title"),
+                            ui.div("High risk, high reward", class_="insider-option-sub"),
+                        ),
+                        ui.div("OPTIONAL", class_="insider-option-flag"),
+                    ),
+                    ui.input_checkbox(
+                        "insider",
+                        "Trade on privileged whispers this tenday",
+                        value=False,
+                    ),
+                    ui.div(
+                        {"class": "insider-option-stats"},
+                        ui.span(
+                            f"📈 +{INSIDER_TRADING_BONUS * 100:.0f}% final total",
+                            class_="insider-stat benefit",
+                        ),
+                        ui.span(
+                            f"⚠️ ×{INSIDER_LOSS_MULTIPLIER} loss chance",
+                            class_="insider-stat risk",
+                        ),
+                    ),
+                ),
                 ui.div(
                     {"class": "glass-panel"},
                     ui.div(
@@ -958,14 +1324,90 @@ def server(input, output, session):
     if initial_ledger:
         ledger.set(initial_ledger)
 
+    # When the player arms Insider Trading, remind them of the risk and reward
+    @reactive.effect
+    @reactive.event(input.insider)
+    def _insider_warning():
+        # Only prompt when the box is being ticked on, not when cleared
+        if not input.insider():
+            return
+
+        modal_body = ui.div(
+            {"class": "insider-modal"},
+            ui.div("⚖️", class_="insider-modal-glyph"),
+            ui.div("INSIDER TRADING", class_="insider-modal-title"),
+            ui.div(
+                "Privileged whispers, dangerous odds.",
+                class_="insider-modal-subtitle",
+            ),
+            ui.div(
+                {"class": "insider-modal-benefit"},
+                ui.span("📈 Reward", class_="insider-modal-tag benefit"),
+                ui.span(
+                    f"An extra {INSIDER_TRADING_BONUS * 100:.0f}% is added to "
+                    "your final total for the tenday."
+                ),
+            ),
+            ui.div(
+                {"class": "insider-modal-risk"},
+                ui.span("⚠️ Risk", class_="insider-modal-tag risk"),
+                ui.span(
+                    "Your chance of a catastrophic loss "
+                    f"{'doubles' if INSIDER_LOSS_MULTIPLIER == 2 else f'rises {INSIDER_LOSS_MULTIPLIER}x'}"
+                    f", from {LOSS_CHANCE * 100:.0f}% to "
+                    f"{LOSS_CHANCE * INSIDER_LOSS_MULTIPLIER * 100:.0f}%."
+                ),
+            ),
+            ui.div(
+                "The wheel does not forgive the greedy. Trade anyway?",
+                class_="insider-modal-foot",
+            ),
+        )
+
+        modal = ui.modal(
+            modal_body,
+            title=None,
+            easy_close=False,
+            footer=ui.div(
+                {
+                    "style": (
+                        "display:flex; justify-content:flex-end; "
+                        "width:100%; gap:0.5rem;"
+                    )
+                },
+                ui.input_action_button(
+                    "insider_cancel",
+                    "Play it safe",
+                    class_="btn btn-insider-cancel",
+                ),
+                ui.modal_button(
+                    "Embrace the risk", class_="btn btn-insider-confirm"
+                ),
+            ),
+            size="m",
+        )
+        ui.modal_show(modal)
+
+    # "Play it safe" backs out: clear the toggle and dismiss the dialogue
+    @reactive.effect
+    @reactive.event(input.insider_cancel)
+    def _insider_cancel():
+        ui.update_checkbox("insider", value=False)
+        ui.modal_remove()
+
     @reactive.effect
     @reactive.event(input.spin)
     async def _spin_wheel():
         investment = float(input.investment() or 0.0)
         flair_pct = int(input.flair() or "0")
+        use_insider = bool(input.insider())
 
-        # Determine loss vs profit
-        is_loss = random.random() < LOSS_CHANCE
+        # Determine loss vs profit. Insider trading doubles the loss chance,
+        # though the drawn loss wedge on the wheel stays the same size.
+        effective_loss_chance = (
+            LOSS_CHANCE * INSIDER_LOSS_MULTIPLIER if use_insider else LOSS_CHANCE
+        )
+        is_loss = random.random() < effective_loss_chance
         loss_degrees = 360 * LOSS_CHANCE
         profit_degrees = 360 - loss_degrees
 
@@ -995,7 +1437,13 @@ def server(input, output, session):
         base_outcome = investment + base_profit
         flair_bonus_gp = base_outcome * (flair_pct / 100.0)
         final_with_flair = base_outcome + flair_bonus_gp
-        net_profit = final_with_flair - investment
+
+        # Optional Insider Trading bonus: +10% on the running total, only if armed
+        insider_bonus_gp = (
+            final_with_flair * INSIDER_TRADING_BONUS if use_insider else 0.0
+        )
+        final_total = final_with_flair + insider_bonus_gp
+        net_profit = final_total - investment
 
         state = {
             "date": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
@@ -1004,8 +1452,10 @@ def server(input, output, session):
             "flair_pct": flair_pct,
             "base_outcome": base_outcome,
             "flair_bonus_gp": flair_bonus_gp,
+            "insider_bonus_gp": insider_bonus_gp,
+            "insider_used": use_insider,
             "net_profit": net_profit,
-            "final_amount": final_with_flair,
+            "final_amount": final_total,
         }
 
         # Update in-memory ledger (newest first)
@@ -1020,6 +1470,29 @@ def server(input, output, session):
         sign = "+" if result_pct >= 0 else ""
         wheel_str = f"{sign}{result_pct:.1f}%"
         flair_str = f"+{flair_pct}%"
+
+        # Only surface the Insider Trading line when the option was actually armed
+        if use_insider:
+            insider_section = ui.TagList(
+                ui.div(
+                    {"class": "results-insider-row"},
+                    ui.div(
+                        {"class": "results-insider-label"},
+                        ui.span("🤫", class_="results-insider-glyph"),
+                        ui.span("Insider Trading"),
+                    ),
+                    ui.span(
+                        f"+{INSIDER_TRADING_BONUS * 100:.0f}%",
+                        class_="results-insider-value",
+                    ),
+                ),
+                ui.div(
+                    {"class": "results-muted"},
+                    f"(Added {insider_bonus_gp:.0f} gp to gross total)",
+                ),
+            )
+        else:
+            insider_section = ui.TagList()
 
         modal_body = ui.div(
             {"class": "results-modal"},
@@ -1050,6 +1523,7 @@ def server(input, output, session):
                 {"class": "results-muted"},
                 f"(Added {flair_bonus_gp:.0f} gp to gross total)",
             ),
+            insider_section,
             ui.div(class_="results-divider"),
             ui.div(
                 {"class": "results-netbox"},
@@ -1066,7 +1540,7 @@ def server(input, output, session):
                     },
                     ui.span("FINAL AMOUNT", class_="results-final-label"),
                     ui.span(
-                        f"{final_with_flair:.0f} gp", class_="results-final-value"
+                        f"{final_total:.0f} gp", class_="results-final-value"
                     ),
                 ),
             ),
