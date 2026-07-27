@@ -7,6 +7,7 @@ import os
 import json
 import inspect
 import requests
+import bcrypt
 
 # Optional import – if missing, app still runs but without Sheets sync
 try:
@@ -40,6 +41,22 @@ SERVICE_ACCOUNT_JSON_ENV = "GT_TAVERN_SERVICE_ACCOUNT_JSON"
 
 # Discord webhook URL (optional)
 DISCORD_WEBHOOK_URL = os.getenv("GT_TAVERN_DISCORD_WEBHOOK_URL", "")
+
+# bcrypt hash used by the per-session password gate
+PASSWORD_HASH_ENV = "GT_TAVERN_PASSWORD_HASH"
+
+
+def verify_password(password: str, password_hash: str) -> bool:
+    """Safely compare a plain-text password with a bcrypt hash."""
+    try:
+        return bcrypt.checkpw(
+            password.encode("utf-8"),
+            password_hash.strip().encode("utf-8"),
+        )
+    except (TypeError, ValueError):
+        # A malformed secret must fail closed.
+        return False
+
 
 # Canonical column order we expect in Sheets
 LEDGER_HEADERS = [
@@ -257,8 +274,7 @@ def notify_discord(state: dict):
 
 # ========================= UI =========================
 
-app_ui = ui.page_fluid(
-    ui.tags.head(
+_page_head = ui.tags.head(
         ui.tags.title("The Gilded Tankard — Tavern Management System"),
         ui.tags.link(
             rel="stylesheet",
@@ -1154,10 +1170,88 @@ app_ui = ui.page_fluid(
               color: #a7f3d0;
               text-shadow: 0 0 10px rgba(52, 211, 153, 0.85);
             }
+
+            .login-shell {
+              min-height: 100vh;
+              display: grid;
+              place-items: center;
+              padding: 1.5rem;
+            }
+
+            .login-card {
+              width: min(420px, 100%);
+              padding: 2rem;
+              text-align: center;
+              background: rgba(17, 13, 10, 0.78);
+              border: 1px solid rgba(107, 74, 32, 0.95);
+              border-radius: 14px;
+              box-shadow: 0 24px 60px rgba(0, 0, 0, 0.92);
+              backdrop-filter: blur(20px) saturate(130%);
+            }
+
+            .login-glyph {
+              width: 58px;
+              height: 58px;
+              margin: 0 auto 1rem auto;
+              display: grid;
+              place-items: center;
+              border: 2px solid #f5b63a;
+              border-radius: 50%;
+              background: radial-gradient(circle at 30% 0%, #ffeeca, #f6b53b);
+              color: #43230b;
+              font-size: 1.55rem;
+              box-shadow: 0 0 20px rgba(245, 182, 58, 0.25);
+            }
+
+            .login-title {
+              margin-bottom: 0.35rem;
+              font-family: 'Cinzel Decorative', serif;
+              color: #f4d191;
+              letter-spacing: 0.12em;
+              font-size: 1.2rem;
+            }
+
+            .login-subtitle {
+              margin-bottom: 1.3rem;
+              font-family: 'Spectral', serif;
+              color: #e3c58d;
+            }
+
+            .login-card .form-group {
+              text-align: left;
+            }
+
+            .login-button {
+              width: 100%;
+              margin-top: 0.5rem;
+              padding: 0.65rem 1rem;
+              border: 1px solid #f5b63a;
+              border-radius: 8px;
+              background: linear-gradient(180deg, #d99524, #9b5b12);
+              color: #fff4d1;
+              font-family: 'Cinzel Decorative', serif;
+              letter-spacing: 0.09em;
+              text-shadow: 0 1px 2px #321700;
+            }
+
+            .login-button:hover,
+            .login-button:focus {
+              color: #ffffff;
+              filter: brightness(1.08);
+            }
+
+            .login-error {
+              min-height: 1.4rem;
+              margin-top: 0.85rem;
+              color: #fca5a5;
+              font-family: 'Spectral', serif;
+              font-size: 0.85rem;
+            }
             """
         ),
-    ),
+    )
 
+_protected_content = ui.TagList(
     ui.div(
         {"class": "bg-video-container"},
         ui.tags.video(
@@ -1312,22 +1406,109 @@ app_ui = ui.page_fluid(
 )
 
 
+def login_screen(error_message: str = ""):
+    """Return the only UI exposed to unauthenticated sessions."""
+    configured = bool(os.getenv(PASSWORD_HASH_ENV, "").strip())
+    if not configured:
+        error_message = (
+            f"Access is not configured. Add {PASSWORD_HASH_ENV} "
+            "as a Posit Cloud secret."
+        )
+
+    return ui.TagList(
+        ui.div(
+            {"class": "bg-video-container"},
+            ui.tags.video(
+                ui.tags.source(src="TavernBG - Trim.mp4", type="video/mp4"),
+                autoplay="autoplay",
+                muted="muted",
+                loop="loop",
+                playsinline="playsinline",
+                class_="bg-video",
+            ),
+        ),
+        ui.div({"class": "bg-overlay"}),
+        ui.div(
+            {"class": "login-shell"},
+            ui.div(
+                {"class": "login-card"},
+                ui.div("🔐", class_="login-glyph"),
+                ui.div("THE GILDED TANKARD", class_="login-title"),
+                ui.div(
+                    "Speak the password to enter.",
+                    class_="login-subtitle",
+                ),
+                ui.input_password(
+                    "login_password",
+                    "Password",
+                    placeholder="Enter password",
+                    width="100%",
+                ),
+                ui.input_action_button(
+                    "login_submit",
+                    "Enter the Tavern",
+                    class_="login-button",
+                ),
+                ui.div(error_message, class_="login-error"),
+            ),
+        ),
+    )
+
+
+app_ui = ui.page_fluid(
+    _page_head,
+    ui.output_ui("protected_page"),
+)
+
+
 # ========================= SERVER =========================
 
 def server(input, output, session):
+    authenticated = reactive.Value(False)
+    login_error = reactive.Value("")
     rotation = reactive.Value(0.0)
     last_result = reactive.Value(None)
     ledger = reactive.Value([])
 
-    # Load existing ledger from Google Sheets on session start
-    initial_ledger = load_ledger_from_sheets()
-    if initial_ledger:
-        ledger.set(initial_ledger)
+    @render.ui
+    def protected_page():
+        if authenticated():
+            return _protected_content
+        return login_screen(login_error())
+
+    @reactive.effect
+    @reactive.event(input.login_submit)
+    def _authenticate():
+        password_hash = os.getenv(PASSWORD_HASH_ENV, "").strip()
+        password = input.login_password() or ""
+
+        if not password_hash:
+            login_error.set(
+                f"Access is not configured. Add {PASSWORD_HASH_ENV} "
+                "as a Posit Cloud secret."
+            )
+            return
+
+        if not verify_password(password, password_hash):
+            login_error.set("That password is not recognized.")
+            return
+
+        # Authentication is scoped to this Shiny session and is lost on reload.
+        authenticated.set(True)
+        login_error.set("")
+
+        # Do not fetch or expose ledger data until authentication succeeds.
+        initial_ledger = load_ledger_from_sheets()
+        if initial_ledger:
+            ledger.set(initial_ledger)
 
     # When the player arms Insider Trading, remind them of the risk and reward
     @reactive.effect
     @reactive.event(input.insider)
     def _insider_warning():
+        if not authenticated():
+            return
+
         # Only prompt when the box is being ticked on, not when cleared
         if not input.insider():
             return
@@ -1392,12 +1573,17 @@ def server(input, output, session):
     @reactive.effect
     @reactive.event(input.insider_cancel)
     def _insider_cancel():
+        if not authenticated():
+            return
         ui.update_checkbox("insider", value=False)
         ui.modal_remove()
 
     @reactive.effect
     @reactive.event(input.spin)
     async def _spin_wheel():
+        if not authenticated():
+            return
+
         investment = float(input.investment() or 0.0)
         flair_pct = int(input.flair() or "0")
         use_insider = bool(input.insider())
@@ -1557,6 +1743,9 @@ def server(input, output, session):
 
     @render.text
     def status():
+        if not authenticated():
+            return ""
+
         res = last_result()
         if res is None:
             rows = ledger()
@@ -1584,6 +1773,9 @@ def server(input, output, session):
 
     @render.table
     def latest_summary():
+        if not authenticated():
+            return pd.DataFrame()
+
         res = last_result()
         cols = [
             "Investment (gp)",
@@ -1605,6 +1797,9 @@ def server(input, output, session):
 
     @render.table
     def ledger_table():
+        if not authenticated():
+            return pd.DataFrame()
+
         rows = ledger()
         cols = [
             "Date",
@@ -1631,6 +1826,9 @@ def server(input, output, session):
 
     @render.text
     def ledger_message():
+        if not authenticated():
+            return ""
+
         if not ledger():
             return "The ledger is empty. Spin the wheel to record business."
         return ""
