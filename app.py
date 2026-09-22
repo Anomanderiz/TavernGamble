@@ -21,7 +21,7 @@ except ImportError:
 # --- Game constants ---
 LOSS_CHANCE = 0.10          # 10% chance to suffer a loss
 LOSS_PERCENTAGE = 50        # Return half the investment before bonuses on a loss
-MIN_REVENUE_PERCENT = 20    # Minimum revenue multiplier: 20% of investment
+MIN_REVENUE_PERCENT = 100   # Regular rolls return at least the investment before bonuses
 MAX_REVENUE_PERCENT = 200   # Maximum revenue multiplier: 200% of investment
 INSIDER_TRADING_BONUS = 0.10  # Optional +10% on the final total when armed
 INSIDER_LOSS_MULTIPLIER = 2   # ...but doubles the chance of a loss occurring
@@ -1417,7 +1417,10 @@ _protected_content = ui.TagList(
                                 class_="wheel-center-button",
                             ),
                         ),
-                        ui.div("Beware the Loss sector!", class_="loss-warning"),
+                        ui.div(
+                            "Regular rolls return 100%–200% before bonuses. Only the Loss sector loses gold.",
+                            class_="loss-warning",
+                        ),
                     ),
                     ui.div(ui.output_text("status"), class_="status-text"),
                 ),
