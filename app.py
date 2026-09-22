@@ -18,9 +18,9 @@ except ImportError:
 
 # --- Game constants ---
 LOSS_CHANCE = 0.10          # 10% chance to suffer a loss
-LOSS_PERCENTAGE = -50       # -50% result when loss happens
-MIN_PROFIT_PERCENT = 20     # 20% minimum profit
-MAX_PROFIT_PERCENT = 200    # 200% maximum profit
+LOSS_PERCENTAGE = 50        # Return half the investment before bonuses on a loss
+MIN_REVENUE_PERCENT = 20    # Minimum revenue multiplier: 20% of investment
+MAX_REVENUE_PERCENT = 200   # Maximum revenue multiplier: 200% of investment
 INSIDER_TRADING_BONUS = 0.10  # Optional +10% on the final total when armed
 INSIDER_LOSS_MULTIPLIER = 2   # ...but doubles the chance of a loss occurring
 
@@ -249,20 +249,17 @@ def notify_discord(state: dict):
     try:
         investment = float(state.get("investment", 0) or 0)
         net_profit = float(state.get("net_profit", 0) or 0)
-        final_amount = float(state.get("final_amount", 0) or 0)
-        wheel_pct = float(state.get("wheel_pct", 0) or 0)
 
         # Profit % including flair, based on actual net profit vs investment
         if investment > 0:
             profit_pct_total = (net_profit / investment) * 100.0
         else:
-            # Fallback: just use the wheel percentage if no gold was invested
-            profit_pct_total = wheel_pct
+            profit_pct_total = 0.0
 
         message = (
             "🏠 I have examined your tavern's financials for the tenday:\n"
             f"Profit: {profit_pct_total:.1f}%\n"
-            f"Net Income: {final_amount:.0f} gp"
+            f"Net Profit: {net_profit:.2f} gp"
         )
 
         payload = {"content": message}
@@ -1588,7 +1585,7 @@ def server(input, output, session):
         flair_pct = int(input.flair() or "0")
         use_insider = bool(input.insider())
 
-        # Determine loss vs profit. Insider trading doubles the loss chance,
+        # Determine the loss sector vs regular revenue roll. Insider trading doubles the loss chance,
         # though the drawn loss wedge on the wheel stays the same size.
         effective_loss_chance = (
             LOSS_CHANCE * INSIDER_LOSS_MULTIPLIER if use_insider else LOSS_CHANCE
@@ -1603,8 +1600,8 @@ def server(input, output, session):
             target_angle = margin + random.random() * (loss_degrees - 2 * margin)
         else:
             u = random.random()
-            result_pct = MIN_PROFIT_PERCENT + u * (
-                MAX_PROFIT_PERCENT - MIN_PROFIT_PERCENT
+            result_pct = MIN_REVENUE_PERCENT + u * (
+                MAX_REVENUE_PERCENT - MIN_REVENUE_PERCENT
             )
             target_angle = loss_degrees + u * profit_degrees
 
@@ -1618,9 +1615,8 @@ def server(input, output, session):
         if inspect.isawaitable(maybe_coro):
             await maybe_coro
 
-        # Earnings maths
-        base_profit = investment * (result_pct / 100.0)
-        base_outcome = investment + base_profit
+        # The wheel is a total revenue multiplier, not a profit percentage.
+        base_outcome = investment * (result_pct / 100.0)
         flair_bonus_gp = base_outcome * (flair_pct / 100.0)
         final_with_flair = base_outcome + flair_bonus_gp
 
@@ -1653,8 +1649,7 @@ def server(input, output, session):
         append_state_to_sheets(state)
 
         # Tenday Results modal
-        sign = "+" if result_pct >= 0 else ""
-        wheel_str = f"{sign}{result_pct:.1f}%"
+        wheel_str = f"{result_pct:.1f}% of investment"
         flair_str = f"+{flair_pct}%"
 
         # Only surface the Insider Trading line when the option was actually armed
@@ -1692,12 +1687,12 @@ def server(input, output, session):
             ),
             ui.div(
                 {"class": "results-row"},
-                ui.span("Wheel Result:", class_="results-label"),
+                ui.span("Wheel Revenue Multiplier:", class_="results-label"),
                 ui.span(wheel_str, class_="results-value"),
             ),
             ui.div(
                 {"class": "results-row"},
-                ui.span("Base Outcome:", class_="results-label"),
+                ui.span("Base Revenue:", class_="results-label"),
                 ui.span(f"{base_outcome:.0f} gp", class_="results-value"),
             ),
             ui.div(
@@ -1715,7 +1710,7 @@ def server(input, output, session):
                 {"class": "results-netbox"},
                 ui.div(
                     ui.span("NET PROFIT", class_="results-net-label"),
-                    ui.span(f"{net_profit:.0f} gp", class_="results-net-value"),
+                    ui.span(f"{net_profit:.2f} gp", class_="results-net-value"),
                 ),
                 ui.div(
                     {
@@ -1724,7 +1719,7 @@ def server(input, output, session):
                             "justify-content:space-between;"
                         )
                     },
-                    ui.span("FINAL AMOUNT", class_="results-final-label"),
+                    ui.span("TOTAL REVENUE", class_="results-final-label"),
                     ui.span(
                         f"{final_total:.0f} gp", class_="results-final-value"
                     ),
@@ -1758,18 +1753,12 @@ def server(input, output, session):
 
         pct = res["wheel_pct"]
         net = res["net_profit"]
-        flair_pct = res["flair_pct"]
 
-        if pct < 0:
-            return (
-                f"Loss of {pct:.1f}% — down roughly {abs(net):.1f} gp, "
-                f"even with {flair_pct}% narrative flair."
-            )
-        else:
-            return (
-                f"Gain of {pct:.1f}% — about {net:.1f} gp profit after a "
-                f"{flair_pct}% flair bonus."
-            )
+        outcome = "profit" if net >= 0 else "loss"
+        return (
+            f"Revenue multiplier: {pct:.1f}% of investment; "
+            f"net {outcome}: {abs(net):.2f} gp after bonuses."
+        )
 
     @render.table
     def latest_summary():
@@ -1779,19 +1768,19 @@ def server(input, output, session):
         res = last_result()
         cols = [
             "Investment (gp)",
-            "Fortune wheel",
+            "Wheel revenue multiplier",
             "Flair",
             "Net profit (gp)",
-            "Final amount (gp)",
+            "Total revenue (gp)",
         ]
         if res is None:
             return pd.DataFrame(columns=cols)
         row = {
             "Investment (gp)": round(res["investment"], 1),
-            "Fortune wheel": f"{res['wheel_pct']:.1f}%",
+            "Wheel revenue multiplier": f"{res['wheel_pct']:.1f}%",
             "Flair": f"+{res['flair_pct']}%",
             "Net profit (gp)": round(res["net_profit"], 1),
-            "Final amount (gp)": round(res["final_amount"], 1),
+            "Total revenue (gp)": round(res["final_amount"], 1),
         }
         return pd.DataFrame([row], columns=cols)
 
@@ -1804,10 +1793,10 @@ def server(input, output, session):
         cols = [
             "Date",
             "Investment (gp)",
-            "Fortune wheel",
+            "Wheel revenue multiplier",
             "Flair",
             "Net profit (gp)",
-            "Final amount (gp)",
+            "Total revenue (gp)",
         ]
         if not rows:
             return pd.DataFrame(columns=cols)
@@ -1815,10 +1804,10 @@ def server(input, output, session):
             {
                 "Date": r["date"],
                 "Investment (gp)": round(r["investment"], 1),
-                "Fortune wheel": f"{r['wheel_pct']:.1f}%",
+                "Wheel revenue multiplier": f"{r['wheel_pct']:.1f}%",
                 "Flair": f"+{r['flair_pct']}%",
                 "Net profit (gp)": round(r["net_profit"], 1),
-                "Final amount (gp)": round(r["final_amount"], 1),
+                "Total revenue (gp)": round(r["final_amount"], 1),
             }
             for r in rows
         ]
