@@ -8,6 +8,8 @@ import json
 import inspect
 import requests
 import bcrypt
+import math
+from decimal import Decimal, ROUND_HALF_UP
 
 # Optional import – if missing, app still runs but without Sheets sync
 try:
@@ -263,10 +265,42 @@ def notify_discord(state: dict):
         )
 
         payload = {"content": message}
-        requests.post(url, json=payload, timeout=5)
+        response = requests.post(url, json=payload, timeout=5)
+        response.raise_for_status()
+        if state.get("investors"):
+            details = "Individual net profit (gp), split by investment:"
+            for investor in state["investors"]:
+                # Plain names cannot create Discord mentions or multiline entries.
+                name = investor["name"].replace("@", "?")
+                line = f"\n{name}: {investor['net_profit']:.2f} gp"
+                if len(details) + len(line) > 1900:
+                    response = requests.post(url, json={"content": details, "allowed_mentions": {"parse": []}}, timeout=5)
+                    response.raise_for_status()
+                    details = "Individual net profit (continued):"
+                details += line
+            response = requests.post(url, json={"content": details, "allowed_mentions": {"parse": []}}, timeout=5)
+            response.raise_for_status()
         print("[Discord] Sent tavern summary webhook.")
     except Exception as e:
         print(f"[Discord] Failed to send webhook: {e}")
+
+
+DEFAULT_INVESTORS = ("Kira", "Goody", "Thrum", "Lancer", "Connelle")
+
+
+def allocate_profit(investors, net_profit):
+    """Split profit/loss by contribution, allocating leftover cents deterministically."""
+    contributions = [Decimal(str(row["investment"])) for row in investors]
+    total = sum(contributions)
+    cents = int((Decimal(str(net_profit)) * 100).quantize(Decimal("1"), rounding=ROUND_HALF_UP))
+    shares = [abs(cents) * value / total if total else Decimal(0) for value in contributions]
+    allocated = [int(value) for value in shares]
+    if total:
+        order = sorted(range(len(shares)), key=lambda i: shares[i] - allocated[i], reverse=True)
+        for i in order[:abs(cents) - sum(allocated)]:
+            allocated[i] += 1
+    sign = -1 if cents < 0 else 1
+    return [dict(row, net_profit=sign * amount / 100) for row, amount in zip(investors, allocated)]
 
 
 # ========================= UI =========================
@@ -1323,7 +1357,10 @@ _protected_content = ui.TagList(
                         ),
                     ),
                     ui.div("Gold Pieces (gp) to invest", class_="field-label"),
-                    ui.input_numeric("investment", None, value=0, min=0, step=10),
+                    ui.output_ui("investor_fields"),
+                    ui.input_text("new_investor_name", "New investor name", placeholder="Name"),
+                    ui.input_action_button("add_investor", "Add investor", class_="btn btn-record"),
+                    ui.output_text("pooled_investment"),
                     ui.div(
                         "*Optional: Enter 0 to test fortune without gold.",
                         class_="help-text",
@@ -1466,6 +1503,82 @@ def server(input, output, session):
     rotation = reactive.Value(0.0)
     last_result = reactive.Value(None)
     ledger = reactive.Value([])
+    investors = reactive.Value([
+        {"id": str(i), "name": name, "investment": 0.0}
+        for i, name in enumerate(DEFAULT_INVESTORS)
+    ])
+    next_investor_id = len(DEFAULT_INVESTORS)
+
+    def read_investors():
+        rows = []
+        for row in investors():
+            value = input[f"investment_{row['id']}"]()
+            amount = float(value) if value is not None else 0.0
+            if not math.isfinite(amount) or amount < 0:
+                raise ValueError("Investments must be finite, non-negative amounts in gp.")
+            rows.append(dict(row, investment=amount))
+        if not math.isfinite(sum(row["investment"] for row in rows)):
+            raise ValueError("The pooled investment is too large.")
+        return rows
+
+    @render.ui
+    def investor_fields():
+        if not authenticated():
+            return ui.TagList()
+        rows = investors()
+        return ui.TagList(
+            *[ui.input_numeric(f"investment_{row['id']}", f"{row['name']} (gp)",
+                               value=row["investment"], min=0, step=1) for row in rows],
+            ui.input_select("remove_investor_id", "Investor to remove",
+                            choices={row["id"]: row["name"] for row in rows}),
+            ui.input_action_button("remove_investor", "Remove investor", class_="btn btn-record"),
+        )
+
+    @render.text
+    def pooled_investment():
+        if not authenticated():
+            return ""
+        try:
+            total = sum(row["investment"] for row in read_investors())
+            return f"Pooled investment: {total:.2f} gp"
+        except ValueError as exc:
+            return str(exc)
+
+    @reactive.effect
+    @reactive.event(input.add_investor)
+    def _add_investor():
+        nonlocal next_investor_id
+        if not authenticated():
+            return
+        name = " ".join((input.new_investor_name() or "").split())
+        if not name or len(name) > 60:
+            ui.notification_show("Enter an investor name of 1 to 60 characters.", type="error")
+            return
+        try:
+            rows = read_investors()
+        except ValueError as exc:
+            ui.notification_show(str(exc), type="error")
+            return
+        if any(row["name"].casefold() == name.casefold() for row in rows):
+            ui.notification_show("That investor is already listed.", type="error")
+            return
+        investors.set(rows + [{"id": str(next_investor_id), "name": name, "investment": 0.0}])
+        next_investor_id += 1
+        ui.update_text("new_investor_name", value="")
+
+    @reactive.effect
+    @reactive.event(input.remove_investor)
+    def _remove_investor():
+        if not authenticated():
+            return
+        try:
+            rows = read_investors()
+        except ValueError as exc:
+            ui.notification_show(str(exc), type="error")
+            return
+        selected = input.remove_investor_id()
+        investors.set([row for row in rows if row["id"] != selected])
+
 
     @render.ui
     def protected_page():
@@ -1581,7 +1694,12 @@ def server(input, output, session):
         if not authenticated():
             return
 
-        investment = float(input.investment() or 0.0)
+        try:
+            contributions = read_investors()
+        except ValueError as exc:
+            ui.notification_show(str(exc), type="error")
+            return
+        investment = sum(row["investment"] for row in contributions)
         flair_pct = int(input.flair() or "0")
         use_insider = bool(input.insider())
 
@@ -1638,6 +1756,7 @@ def server(input, output, session):
             "insider_used": use_insider,
             "net_profit": net_profit,
             "final_amount": final_total,
+            "investors": allocate_profit(contributions, net_profit),
         }
 
         # Update in-memory ledger (newest first)
